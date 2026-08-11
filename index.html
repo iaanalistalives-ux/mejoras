@@ -117,6 +117,32 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 .barra i{display:block;height:100%;background:var(--sage);}
 #frameDash{width:100%;border:none;border-radius:12px;background:#fff;min-height:1400px;}
 .mas{text-align:center;margin-top:14px;}
+
+/* ---- modo reunión ---- */
+.rhead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;}
+.rarea{font-size:18px;font-weight:700;color:var(--sage-dark);}
+.rfecha{font-size:12.5px;color:var(--stone);}
+.ver{background:#fff;border:1px solid var(--warm);border-left:6px solid var(--sage);border-radius:12px;padding:15px 18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+.ver .vt{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--stone);margin-bottom:5px;}
+.ver .vx{font-size:15.5px;color:#333;line-height:1.55;}
+.ver .vx b{color:var(--sage-dark);}
+.okbar{background:#E7F5EF;border:1px solid #BFE5D6;border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--sage);margin-bottom:14px;}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;}
+.chip{background:#fff;border:1px solid var(--warm);color:var(--stone);font-family:inherit;font-size:12.5px;font-weight:700;padding:8px 13px;border-radius:99px;cursor:pointer;}
+.chip.on{background:var(--sage);color:#fff;border-color:var(--sage);}
+.chip .cn{display:inline-block;background:rgba(0,0,0,.08);border-radius:99px;padding:0 7px;margin-left:4px;font-size:11.5px;}
+.chip.on .cn{background:rgba(255,255,255,.25);}
+.rcard{background:#fff;border:1px solid var(--warm);border-radius:12px;padding:14px 15px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.rcard.tocada{border-color:var(--sage);box-shadow:0 0 0 2px rgba(15,122,90,.15);}
+.rlbl{font-size:11px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:.4px;margin:11px 0 5px;}
+.rfila{display:flex;gap:10px;align-items:flex-end;}
+.rfila>div:first-child{flex:1;}
+.rfila input[type=date]{width:100%;}
+.reprog{margin-top:10px;background:#FFF3CD;border-radius:6px;padding:7px 10px;font-size:11.5px;color:#8A6100;}
+.barraGuardar{position:fixed;left:0;right:0;bottom:0;background:var(--petrol);color:#fff;padding:12px 16px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:90;box-shadow:0 -3px 14px rgba(0,0,0,.2);}
+.barraGuardar.on{display:flex;}
+.barraGuardar span{font-size:13.5px;font-weight:600;}
+@media(max-width:560px){.rhead .rarea{font-size:16px;}}
 </style>
 </head>
 <body>
@@ -137,6 +163,7 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 
   <div class="tabs">
     <button class="tab active" onclick="verTab('mejoras')" id="tMejoras">Mejoras</button>
+    <button class="tab" onclick="verTab('reunion')" id="tReunion">Reunión</button>
     <button class="tab" onclick="verTab('dash')" id="tDash">Tablero</button>
   </div>
 
@@ -160,6 +187,20 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
     <div id="conteo" style="font-size:12.5px;color:var(--stone);margin-bottom:10px;"></div>
     <div id="lista" class="lista"></div>
     <div class="mas"><button class="btn sec" id="btnMas" onclick="MOSTRAR+=50;pintar(true);" style="display:none">Ver más</button></div>
+  </div>
+
+  <!-- ============ REUNIÓN ============ -->
+  <div id="vReunion" style="display:none">
+    <div class="card" id="rSetup">
+      <div style="font-size:15px;font-weight:700;color:var(--sage-dark);margin-bottom:4px;">Reunión del Círculo de Mejoras</div>
+      <div style="font-size:12.5px;color:var(--stone);">Elige el área y la fecha. Te muestro qué mejoras se comprometieron para hoy y cuáles siguen pendientes.</div>
+      <div style="display:grid;grid-template-columns:1fr 160px;gap:12px;margin-top:4px;">
+        <div><label>Área</label><select class="full" id="rArea"></select></div>
+        <div><label>Fecha</label><input type="date" id="rFecha"></div>
+      </div>
+      <button class="btn" style="margin-top:16px;width:100%;padding:13px;" onclick="iniciarReunion()">Iniciar reunión</button>
+    </div>
+    <div id="rCont"></div>
   </div>
 
   <!-- ============ DASHBOARD ============ -->
@@ -467,14 +508,242 @@ function guardar(){
 
 function cerrar(){$('modal').classList.remove('on');document.body.style.overflow='';ACTUAL=null;}
 
+/* ================================================================
+   MODO REUNIÓN
+   ================================================================ */
+var REU={area:'',fecha:'',activa:false,filtro:'hoy',cambios:{}};
+
+function hoyISO(){
+  var d=new Date();
+  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+}
+function fechaLarga(iso){
+  if(!iso)return '';
+  var p=iso.split('-');
+  var meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return parseInt(p[2],10)+' de '+meses[parseInt(p[1],10)-1]+' de '+p[0];
+}
+
+function prepReunion(){
+  var sel=$('rArea');
+  if(sel.options.length!==AREAS.length){
+    sel.innerHTML=AREAS.map(function(a){return '<option>'+esc(a)+'</option>';}).join('');
+  }
+  if(REU.area)sel.value=REU.area;
+  if(!$('rFecha').value)$('rFecha').value=hoyISO();
+}
+
+function iniciarReunion(){
+  REU.area=$('rArea').value;
+  REU.fecha=$('rFecha').value||hoyISO();
+  REU.activa=true;REU.cambios={};REU.filtro='hoy';
+  $('rSetup').style.display='none';
+  pintarReunion();
+  window.scrollTo(0,0);
+}
+
+function salirReunion(){
+  if(Object.keys(REU.cambios).length&&!confirm('Tienes cambios sin guardar. ¿Salir de todos modos?'))return;
+  REU.activa=false;REU.cambios={};
+  $('rSetup').style.display='';$('rCont').innerHTML='';
+}
+
+/* clasificación de las mejoras del área frente a la fecha de reunión */
+function gruposReunion(){
+  var f=REU.fecha;
+  var lista=MEJORAS.filter(function(m){return m.area===REU.area&&m.pct<1;});
+  var hoy=[],vencidas=[],futuras=[],sinFecha=[];
+  lista.forEach(function(m){
+    var fc=(m.fechaCierre||'').substring(0,10);
+    if(!fc)sinFecha.push(m);
+    else if(fc===f)hoy.push(m);
+    else if(fc<f)vencidas.push(m);
+    else futuras.push(m);
+  });
+  function porFecha(a,b){return (a.fechaCierre||'9999').localeCompare(b.fechaCierre||'9999');}
+  vencidas.sort(porFecha);futuras.sort(porFecha);
+  return {hoy:hoy,vencidas:vencidas,futuras:futuras,sinFecha:sinFecha,todas:lista};
+}
+
+function pintarReunion(){
+  if(!REU.activa)return;
+  var g=gruposReunion();
+  var cerradasHoy=MEJORAS.filter(function(m){
+    return m.area===REU.area&&m.pct>=1&&(m.fechaAct||'').substring(0,10)===hoyISO();}).length;
+
+  /* --- veredicto en palabras --- */
+  var v;
+  if(g.hoy.length)
+    v='Para hoy, <b>'+REU.area+'</b> se comprometió a tener lista'+(g.hoy.length>1?'s ':' ')+
+      '<b>'+g.hoy.length+'</b> mejora'+(g.hoy.length>1?'s':'')+'. Revísala'+(g.hoy.length>1?'s':'')+' primero y pregunta si quedó cerrada'+(g.hoy.length>1?'s':'')+'.';
+  else if(g.vencidas.length)
+    v='Para hoy <b>no había ninguna mejora comprometida</b> en '+REU.area+', pero hay <b>'+g.vencidas.length+
+      '</b> con fecha ya vencida. Son las primeras por las que conviene preguntar.';
+  else if(g.todas.length)
+    v='Para hoy <b>no había ninguna mejora comprometida</b> en '+REU.area+' y ninguna está vencida. Quedan <b>'+
+      g.todas.length+'</b> pendientes por cerrar: aprovecha para preguntar cómo van.';
+  else
+    v='<b>'+REU.area+' no tiene ninguna mejora pendiente.</b> Todas están cerradas. Es momento de recoger ideas nuevas.';
+
+  var h='';
+  h+='<div class="rhead">'+
+     '<div><div class="rarea">'+esc(REU.area)+'</div>'+
+     '<div class="rfecha">Reunión del '+fechaLarga(REU.fecha)+'</div></div>'+
+     '<button class="btn sec sm" onclick="salirReunion()">Cambiar</button></div>';
+  h+='<div class="ver"><div class="vt">Antes de empezar</div><div class="vx">'+v+'</div></div>';
+
+  if(cerradasHoy)h+='<div class="okbar">'+cerradasHoy+' mejora(s) de esta área se cerraron hoy.</div>';
+
+  h+='<div class="chips">'+
+     chip('hoy','Comprometidas hoy',g.hoy.length)+
+     chip('vencidas','Vencidas',g.vencidas.length)+
+     chip('todas','Todas las pendientes',g.todas.length)+
+     chip('sinFecha','Sin fecha',g.sinFecha.length)+
+     '</div>';
+
+  var l = REU.filtro==='hoy'?g.hoy : REU.filtro==='vencidas'?g.vencidas :
+          REU.filtro==='sinFecha'?g.sinFecha : g.todas;
+
+  if(!l.length){
+    h+='<div class="card" style="text-align:center;color:var(--stone);padding:26px 18px;">'+
+       'No hay mejoras en este grupo.'+
+       (REU.filtro==='hoy'?'<div style="margin-top:10px"><button class="btn sec sm" onclick="filtroReu(\'todas\')">Ver las pendientes por cerrar</button></div>':'')+
+       '</div>';
+  } else {
+    h+='<div class="lista">'+l.map(tarjetaReunion).join('')+'</div>';
+  }
+
+  h+='<div class="card" style="margin-top:16px;">'+
+     '<label>Acuerdos de la reunión (opcional)</label>'+
+     '<textarea id="rNota" placeholder="Ej.: Se acordó que Compras confirma el proveedor esta semana.">'+
+     esc(REU.nota||'')+'</textarea>'+
+     '<button class="btn sec" style="width:100%;margin-top:12px;padding:12px;" onclick="cerrarReunion()">Cerrar reunión y registrar acta</button>'+
+     '</div>';
+
+  h+='<div style="height:80px"></div>';
+  $('rCont').innerHTML=h;
+  barraGuardar();
+}
+
+function chip(id,txt,n){
+  return '<button class="chip'+(REU.filtro===id?' on':'')+'" onclick="filtroReu(\''+id+'\')">'+
+         txt+' <span class="cn">'+n+'</span></button>';
+}
+function filtroReu(f){
+  var nt=$('rNota');if(nt)REU.nota=nt.value;
+  REU.filtro=f;pintarReunion();
+}
+
+function tarjetaReunion(m){
+  var c=REU.cambios[m.id]||{};
+  var pct=(c.pct!==undefined)?c.pct:m.pct;
+  var fc=(c.fechaCierre!==undefined)?c.fechaCierre:(m.fechaCierre||'').substring(0,10);
+  var tocada=Object.keys(c).length>0;
+  var venc=fc&&fc<REU.fecha&&pct<1;
+  var nf=fotosDe(m.id).length;
+  var h='<div class="rcard'+(tocada?' tocada':'')+'" id="rc-'+m.id+'">';
+  h+='<div class="ihead"><span class="iid">'+esc(m.id)+'</span>'+
+     (venc?'<span class="pill rev">vencida</span>':'')+
+     (m.revisar==='SI'?'<span class="pill rev">por revisar</span>':'')+'</div>';
+  h+='<div class="itxt">'+esc(m.idea)+'</div>';
+  if(m.responsable)h+='<div style="font-size:11.5px;color:var(--stone);margin-bottom:8px;">Responsable: '+esc(m.responsable)+'</div>';
+  h+='<div class="rlbl">¿En qué va?</div>';
+  h+='<div class="escala">'+ESCALA.map(function(e){
+      return '<button type="button" class="esc'+(Math.abs(e.p-pct)<0.001?' on':'')+'" '+
+             'onclick="reuPct(\''+m.id+'\','+e.p+')"><div class="ep">'+Math.round(e.p*100)+'%</div>'+
+             '<div class="el">'+e.c+'</div></button>';}).join('')+'</div>';
+  h+='<div class="rfila"><div style="flex:1"><div class="rlbl">¿Para cuándo queda?</div>'+
+     '<input type="date" value="'+esc(fc)+'" onchange="reuFecha(\''+m.id+'\',this.value)"></div>'+
+     '<div><div class="rlbl">Fotos</div>'+
+     '<button class="btn sec sm" style="width:100%" onclick="abrir(\''+m.id+'\')">'+(nf?nf+' 📷':'Ver / subir')+'</button></div></div>';
+  if(m.vecesReprog>0)
+    h+='<div class="reprog">Ya se reprogramó '+m.vecesReprog+' vez'+(m.vecesReprog>1?'ces':'')+
+       (m.fechaCierreOrig?' · fecha original: '+esc(m.fechaCierreOrig.substring(0,10)):'')+'</div>';
+  h+='</div>';
+  return h;
+}
+
+function reuPct(id,p){
+  if(!REU.cambios[id])REU.cambios[id]={};
+  REU.cambios[id].pct=p;
+  var nt=$('rNota');if(nt)REU.nota=nt.value;
+  pintarReunion();
+}
+function reuFecha(id,f){
+  if(!REU.cambios[id])REU.cambios[id]={};
+  REU.cambios[id].fechaCierre=f;
+  var nt=$('rNota');if(nt)REU.nota=nt.value;
+  var el=$('rc-'+id);if(el)el.classList.add('tocada');
+  barraGuardar();
+}
+
+function barraGuardar(){
+  var n=Object.keys(REU.cambios).length;
+  var b=$('barra');
+  if(!b){
+    b=document.createElement('div');b.id='barra';b.className='barraGuardar';
+    document.body.appendChild(b);
+  }
+  if(!n||!REU.activa){b.className='barraGuardar';return;}
+  b.className='barraGuardar on';
+  b.innerHTML='<span>'+n+' mejora(s) con cambios</span>'+
+    '<button class="btn" onclick="guardarReunion()">Guardar</button>';
+}
+
+function guardarReunion(){
+  var ids=Object.keys(REU.cambios);
+  if(!ids.length)return;
+  var lote=ids.map(function(id){
+    var c=REU.cambios[id];
+    return {id:id,pct:c.pct,fechaCierre:c.fechaCierre};
+  });
+  var b=$('barra');b.innerHTML='<span>Guardando…</span>';
+  post({accion:'lote',cambios:lote,usuario:USUARIO}).then(function(r){
+    if(!r.ok){toast('Error: '+r.error,true);barraGuardar();return;}
+    toast(r.actualizadas+' mejora(s) actualizada(s)');
+    REU.cambios={};
+    var nt=$('rNota');if(nt)REU.nota=nt.value;
+    jsonp({accion:'mejoras'},function(x){
+      if(x.ok)MEJORAS=x.mejoras||[];
+      pintarReunion();pintar(true);
+    });
+  }).catch(function(e){toast('Error al guardar: '+e,true);barraGuardar();});
+}
+
+function cerrarReunion(){
+  var nt=$('rNota');REU.nota=nt?nt.value:'';
+  if(Object.keys(REU.cambios).length){
+    if(!confirm('Tienes cambios sin guardar. ¿Guardarlos antes de cerrar?')){}
+    else{guardarReunion();return;}
+  }
+  var g=gruposReunion();
+  var cerradas=MEJORAS.filter(function(m){
+    return m.area===REU.area&&m.pct>=1&&(m.fechaAct||'').substring(0,10)===hoyISO();}).length;
+  post({accion:'acta',fecha:REU.fecha,area:REU.area,revisadas:g.todas.length,
+        cerradas:cerradas,pendientes:g.todas.length,vencidas:g.vencidas.length,
+        nota:REU.nota||'',usuario:USUARIO}).then(function(r){
+    if(!r.ok){toast('Error: '+r.error,true);return;}
+    toast('Acta registrada');
+    REU.activa=false;REU.nota='';
+    $('rSetup').style.display='';
+    $('rCont').innerHTML='<div class="card" style="text-align:center;padding:26px;">'+
+      '<div style="font-size:15px;font-weight:700;color:var(--sage-dark);">Reunión cerrada</div>'+
+      '<div style="font-size:13px;color:var(--stone);margin-top:6px;">'+
+      esc(REU.area)+' · '+g.todas.length+' pendientes · '+g.vencidas.length+' vencidas</div></div>';
+    barraGuardar();
+  }).catch(function(e){toast('Error: '+e,true);});
+}
+
 /* ---------- TABS ---------- */
 function verTab(t){
-  var m=t==='mejoras';
-  $('vMejoras').style.display=m?'':'none';
-  $('vDash').style.display=m?'none':'';
-  $('tMejoras').className='tab'+(m?' active':'');
-  $('tDash').className='tab'+(m?'':' active');
-  if(!m&&!$('frameDash').srcdoc)cargarDash();
+  $('vMejoras').style.display=(t==='mejoras')?'':'none';
+  $('vReunion').style.display=(t==='reunion')?'':'none';
+  $('vDash').style.display=(t==='dash')?'':'none';
+  $('tMejoras').className='tab'+(t==='mejoras'?' active':'');
+  $('tReunion').className='tab'+(t==='reunion'?' active':'');
+  $('tDash').className='tab'+(t==='dash'?' active':'');
+  if(t==='reunion')prepReunion();
+  if(t==='dash'&&!$('frameDash').srcdoc)cargarDash();
 }
 function cargarDash(){$('frameDash').srcdoc=plantillaDash();}
 function exportarDash(){
@@ -595,8 +864,12 @@ function datos(){
   var ids={};E.forEach(function(x){ids[x.idMejora]=1;});
   var conFoto=f.filter(function(m){return ids[m.id];}).length;
   var rev=f.filter(function(m){return m.revisar==='SI';}).length;
+  var reprog=f.filter(function(m){return (m.vecesReprog||0)>0;}).length;
+  var hoy=new Date().toISOString().substring(0,10);
+  var venc=f.filter(function(m){var fc=(m.fechaCierre||'').substring(0,10);
+    return fc&&fc<hoy&&m.pct<1;}).length;
   return {f:f,n:n,suma:suma,avance:n?suma/n*100:0,cerr:cerr,proc:proc,nini:nini,
-          conFoto:conFoto,rev:rev,fotos:E.length};
+          conFoto:conFoto,rev:rev,fotos:E.length,reprog:reprog,venc:venc};
 }
 
 function porArea(){
@@ -636,6 +909,8 @@ function render(){
     kpi('warn',d.proc,'En curso','Entre 30% y 70% de avance')+
     kpi('bad',d.nini,'Sin empezar','En 0%: no iniciado')+
     kpi('neu',d.conFoto,'Con foto','Ideas con evidencia cargada · '+d.fotos+' fotos en total')+
+    kpi('bad',d.venc,'Fecha vencida','Sin cerrar y con fecha de cierre ya pasada')+
+    kpi('warn',d.reprog,'Reprogramadas','Se les movió la fecha de cierre al menos una vez')+
   '</div>';
 
   var pctFoto=d.n?d.conFoto/d.n*100:0;
@@ -644,6 +919,7 @@ function render(){
 
   h+='<div class="tabs">'+
      tb('areas','Avance por área')+tb('estados','Distribución del avance')+
+     tb('vencidas','Vencidas ('+d.venc+')')+
      tb('revisar','Por revisar ('+d.rev+')')+tb('detalle','Detalle')+'</div>';
   h+='<div id="cont"></div>';
   h+=guia();
@@ -680,6 +956,15 @@ function pintarTab(){
         plugins:{legend:{display:false},tooltip:{callbacks:{label:function(x){return x.raw+' ideas ('+n1(x.raw/d.n*100)+'%)';}}}},
         scales:{x:{beginAtZero:true,grid:{color:'#F1F6F4'},title:{display:true,text:'Cantidad de ideas'}},y:{grid:{display:false}}}}});
   }
+  else if(TAB==='vencidas'){
+    var hoy=new Date().toISOString().substring(0,10);
+    var v=d.f.filter(function(m){var fc=(m.fechaCierre||'').substring(0,10);
+      return fc&&fc<hoy&&m.pct<1;}).sort(function(a,b){
+      return (a.fechaCierre||'').localeCompare(b.fechaCierre||'');});
+    c.innerHTML='<div class="panel"><div class="pt">Mejoras con la fecha de cierre ya pasada</div>'+
+      '<div class="ph">Se comprometió una fecha, esa fecha llegó y la mejora sigue abierta. Ordenadas de la más atrasada a la más reciente.</div>'+
+      (v.length?tabla(v,true):'<div style="padding:14px;color:var(--stone)">Ninguna mejora está vencida.</div>')+'</div>';
+  }
   else if(TAB==='revisar'){
     var r=d.f.filter(function(m){return m.revisar==='SI';});
     c.innerHTML='<div class="panel"><div class="pt">Ideas que necesitan revisión</div>'+
@@ -693,15 +978,20 @@ function pintarTab(){
   }
 }
 
-function tabla(l){
+function tabla(l,conFecha){
   var ids={};E.forEach(function(x){ids[x.idMejora]=(ids[x.idMejora]||0)+1;});
   return '<div style="overflow-x:auto"><table><thead><tr>'+
-    '<th>Código</th><th>Área</th><th>Idea de mejora</th><th>Avance</th><th>Responsable</th><th>Fotos</th>'+
+    '<th>Código</th><th>Área</th><th>Idea de mejora</th><th>Avance</th>'+
+    (conFecha?'<th>Fecha de cierre</th>':'<th>Responsable</th>')+'<th>Fotos</th>'+
     '</tr></thead><tbody>'+l.map(function(m){
+      var rp=(m.vecesReprog||0);
       return '<tr><td><b>'+esc(m.id)+'</b></td><td>'+esc(m.area)+'</td><td>'+esc(m.idea)+'</td>'+
       '<td><span class="pill '+pil(m.pct)+'">'+Math.round(m.pct*100)+'% · '+esc(estadoDe(m.pct))+'</span>'+
       (m.revisar==='SI'?' <span class="pill rev">revisar</span>':'')+'</td>'+
-      '<td>'+esc(m.responsable)+'</td><td>'+(ids[m.id]||0)+'</td></tr>';
+      (conFecha?('<td>'+esc((m.fechaCierre||'').substring(0,10))+
+        (rp?'<div style="font-size:10.5px;color:#8A6100">reprogramada '+rp+'×</div>':'')+'</td>')
+       :('<td>'+esc(m.responsable)+'</td>'))+
+      '<td>'+(ids[m.id]||0)+'</td></tr>';
     }).join('')+'</tbody></table></div>';
 }
 
@@ -712,6 +1002,8 @@ function guia(){
   '<dt>Los cinco escalones</dt><dd>0% no iniciado · 30% solicitud realizada · 50% pedido en gestión · 70% confirmado por el proveedor · 100% entregado o implementado. Es la misma escala que ya se usaba en los archivos de cumplimiento por área.</dd>'+
   '<dt>Por revisar</dt><dd>Ideas que vinieron del Excel antiguo sin estado o sin fecha de cierre. Se cargaron en 0% por defecto, así que hasta revisarlas el avance real podría ser mayor que el que muestra este tablero.</dd>'+
   '<dt>Con foto</dt><dd>Ideas que tienen al menos una imagen cargada (antes o después). Es la única forma de verificar que la mejora se ejecutó de verdad y no solo se declaró cerrada.</dd>'+
+  '<dt>Fecha vencida</dt><dd>En la reunión semanal el área dice para cuándo estará lista la mejora. Si esa fecha ya pasó y la mejora sigue abierta, aparece aquí.</dd>'+
+  '<dt>Reprogramadas</dt><dd>Cuántas veces se movió la fecha comprometida. Una mejora reprogramada varias veces suele indicar que está trabada, no que avanza lento.</dd>'+
   '<dt>¿De dónde salen los datos?</dt><dd>Del Google Sheet que Margot actualiza desde el panel de gestión. Esta página lo vuelve a leer cada vez que se abre o se refresca.</dd>'+
   '</dl></div>';
 }
