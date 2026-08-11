@@ -802,6 +802,7 @@ return '<!DOCTYPE html><html lang="es-PE"><head><meta charset="UTF-8">'+
 '.pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;white-space:nowrap;}'+
 '.pill.ok{background:#E7F5EF;color:var(--sage);}.pill.mid{background:#FEF3E2;color:var(--taupe);}'+
 '.pill.no{background:#F1F6F4;color:var(--stone);}.pill.rev{background:#FFF3CD;color:#8A6100;}'+
+'.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}'+'@media(max-width:760px){.grid2{grid-template-columns:1fr;}}'+'.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:11px;}'+'.acard{background:#fff;border:1px solid var(--warm);border-left:5px solid var(--warm);border-radius:10px;padding:12px 13px;cursor:pointer;transition:border-color .15s;}'+'.acard:hover{border-color:var(--sage);}'+'.acard.v{border-left-color:#0F7A5A;}.acard.a{border-left-color:#F59E0B;}.acard.r{border-left-color:#DC2626;}'+'.acard .an{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--stone);line-height:1.3;min-height:28px;}'+'.acard .av{font-size:26px;font-weight:700;color:#333;line-height:1.1;margin:2px 0 7px;}'+'.acard .abar{display:flex;height:7px;border-radius:99px;overflow:hidden;background:var(--warm-light);}'+'.acard .abar i{display:block;height:100%;}'+'.acard .ad{font-size:10.5px;color:var(--stone);margin-top:7px;line-height:1.4;}'+'.dual{display:grid;grid-template-columns:1fr 1fr;gap:14px;}'+'.dcell{background:var(--warm-light);border-radius:10px;padding:16px;text-align:center;}'+'.dcell .dv{font-size:30px;font-weight:700;color:var(--sage);line-height:1.1;}'+'.dcell .dl{font-size:12px;color:var(--stone);margin-top:3px;}'+'.nota-inline{margin-top:12px;background:#FFF3CD;border-radius:8px;padding:10px 13px;font-size:12px;color:#8A6100;line-height:1.5;}'+'.busca{width:100%;font-family:inherit;font-size:13.5px;border:1px solid var(--warm);border-radius:8px;padding:9px 12px;margin-bottom:12px;}'+'.pill.mal{background:#FBE9E9;color:#DC2626;}'+
 '.guia{background:#fff;border:1px solid var(--warm);border-radius:12px;padding:18px 20px;margin-top:26px;box-shadow:0 1px 3px rgba(0,0,0,.05);}'+
 '.guia h3{margin:0 0 10px;font-size:15px;color:var(--sage-dark);}'+
 '.guia dt{font-weight:700;font-size:12.5px;color:#333;margin-top:11px;}'+
@@ -819,14 +820,19 @@ return '<!DOCTYPE html><html lang="es-PE"><head><meta charset="UTF-8">'+
 function dashJsFuente(){
 var ESCALA=[{p:0,c:'No iniciado'},{p:0.3,c:'Solicitud realizada'},{p:0.5,c:'Pedido en gestión'},
             {p:0.7,c:'Confirmado por proveedor'},{p:1,c:'Entregado / cerrado'}];
-var ROT=['#B45309','#4E6B78','#10B981','#DC2626','#F59E0B'];
-var M=[],E=[],TAB='areas',AREA='';
+var COL_ESC=['#C9D6D2','#F59E0B','#B45309','#4E6B78','#0F7A5A'];
+var C_CERR='#0F7A5A', C_CURSO='#F59E0B', C_NADA='#C9D6D2', C_MAL='#DC2626', C_AZUL='#4E6B78';
+var M=[],E=[],TAB='panorama',AREA='',CHARTS=[];
 function $(i){return document.getElementById(i);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function estadoDe(p){for(var i=0;i<ESCALA.length;i++)if(Math.abs(ESCALA[i].p-p)<0.001)return ESCALA[i].c;return '—';}
 function pil(p){return p>=1?'ok':p>0?'mid':'no';}
 function n1(x){return (Math.round(x*10)/10).toLocaleString('es-PE');}
+function n0(x){return Math.round(x).toLocaleString('es-PE');}
+function hoyISO(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function dias(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
+function corto(s,n){s=String(s||'');return s.length>n?s.substring(0,n-1)+'…':s;}
 
 function jsonp(params,cb,err){
   var fn='d_'+Math.random().toString(36).slice(2);
@@ -848,7 +854,11 @@ if(typeof Chart!=='undefined'){
   Chart.defaults.plugins.tooltip.backgroundColor='rgba(51,51,51,0.95)';
   Chart.defaults.plugins.tooltip.padding=10;
   Chart.defaults.plugins.tooltip.cornerRadius=4;
+  Chart.defaults.plugins.legend.labels.boxWidth=12;
+  Chart.defaults.plugins.legend.labels.padding=14;
 }
+function limpiarCharts(){for(var i=0;i<CHARTS.length;i++){try{CHARTS[i].destroy();}catch(e){}}CHARTS=[];}
+function mk(id,cfg){var el=$(id);if(!el||typeof Chart==='undefined')return;CHARTS.push(new Chart(el,cfg));}
 
 jsonp({accion:'todo'},function(r){
   if(!r.ok){$('app').innerHTML='<div class="err">Error al leer los datos: '+esc(r.error)+'</div>';return;}
@@ -857,70 +867,88 @@ jsonp({accion:'todo'},function(r){
   $('app').innerHTML='<div class="err"><b>No se pudo conectar con el Sheet.</b> '+esc(e)+'</div>';
 });
 
+/* ---------------- cálculos ---------------- */
 function datos(){
   var f=AREA?M.filter(function(m){return m.area===AREA;}):M;
-  var n=f.length, suma=0, cerr=0, proc=0, nini=0;
+  var n=f.length,suma=0,cerr=0,proc=0,nini=0;
   f.forEach(function(m){suma+=m.pct;if(m.pct>=1)cerr++;else if(m.pct>0)proc++;else nini++;});
   var ids={};E.forEach(function(x){ids[x.idMejora]=1;});
   var conFoto=f.filter(function(m){return ids[m.id];}).length;
   var rev=f.filter(function(m){return m.revisar==='SI';}).length;
   var reprog=f.filter(function(m){return (m.vecesReprog||0)>0;}).length;
-  var hoy=new Date().toISOString().substring(0,10);
+  var hoy=hoyISO();
   var venc=f.filter(function(m){var fc=(m.fechaCierre||'').substring(0,10);
     return fc&&fc<hoy&&m.pct<1;}).length;
+  var nAntes=0,nDesp=0;
+  E.forEach(function(x){if(x.tipo==='DESPUES')nDesp++;else nAntes++;});
   return {f:f,n:n,suma:suma,avance:n?suma/n*100:0,cerr:cerr,proc:proc,nini:nini,
-          conFoto:conFoto,rev:rev,fotos:E.length,reprog:reprog,venc:venc};
+          conFoto:conFoto,rev:rev,fotos:E.length,reprog:reprog,venc:venc,
+          nAntes:nAntes,nDesp:nDesp};
 }
 
 function porArea(){
-  var g={};
+  var g={},hoy=hoyISO();
+  var ids={};E.forEach(function(x){ids[x.idMejora]=1;});
   M.forEach(function(m){
-    if(!g[m.area])g[m.area]={n:0,s:0,c:0};
-    g[m.area].n++;g[m.area].s+=m.pct;if(m.pct>=1)g[m.area].c++;
+    if(!g[m.area])g[m.area]={n:0,s:0,c:0,p:0,z:0,v:0,f:0,r:0};
+    var a=g[m.area];a.n++;a.s+=m.pct;
+    if(m.pct>=1)a.c++;else if(m.pct>0)a.p++;else a.z++;
+    var fc=(m.fechaCierre||'').substring(0,10);
+    if(fc&&fc<hoy&&m.pct<1)a.v++;
+    if(ids[m.id])a.f++;
+    if((m.vecesReprog||0)>0)a.r++;
   });
-  return Object.keys(g).map(function(a){
-    return {area:a,n:g[a].n,cerr:g[a].c,avance:g[a].s/g[a].n*100};
+  return Object.keys(g).map(function(a){var x=g[a];
+    return {area:a,n:x.n,cerr:x.c,curso:x.p,nada:x.z,venc:x.v,foto:x.f,reprog:x.r,
+            avance:x.s/x.n*100,pctFoto:x.f/x.n*100};
   }).sort(function(x,y){return y.avance-x.avance;});
 }
 
+function vencidasList(){
+  var hoy=hoyISO();
+  return (AREA?M.filter(function(m){return m.area===AREA;}):M)
+    .filter(function(m){var fc=(m.fechaCierre||'').substring(0,10);return fc&&fc<hoy&&m.pct<1;})
+    .map(function(m){m._d=dias(m.fechaCierre.substring(0,10),hoy);return m;})
+    .sort(function(a,b){return b._d-a._d;});
+}
+
+/* ---------------- render ---------------- */
 function render(){
+  limpiarCharts();
   var d=datos();
   var amb=AREA?('en '+AREA):'en las 16 áreas';
-  var veredicto;
-  if(d.avance>=70) veredicto='El avance '+amb+' es alto: <b>'+n1(d.avance)+'%</b>. De '+d.n+' ideas registradas, '+d.cerr+' están cerradas y '+d.proc+' siguen en curso.';
-  else if(d.avance>=40) veredicto='El avance '+amb+' es intermedio: <b>'+n1(d.avance)+'%</b>. De '+d.n+' ideas registradas, '+d.cerr+' están cerradas, '+d.proc+' en curso y '+d.nini+' sin empezar.';
-  else veredicto='El avance '+amb+' es bajo: <b>'+n1(d.avance)+'%</b>. De '+d.n+' ideas registradas, solo '+d.cerr+' están cerradas y '+d.nini+' no han empezado.';
-
-  var advert='';
-  if(d.rev>0) advert=' <b>Ojo:</b> '+d.rev+' de esas ideas ('+n1(d.rev/d.n*100)+'%) llegaron del archivo antiguo sin estado o sin fecha de cierre, así que el porcentaje todavía no es confiable al 100% hasta que se revisen.';
+  var v;
+  if(d.avance>=70) v='El avance '+amb+' es alto: <b>'+n1(d.avance)+'%</b>. De '+d.n+' ideas propuestas, '+d.cerr+' ya están cerradas y '+d.proc+' siguen en curso.';
+  else if(d.avance>=40) v='El avance '+amb+' es intermedio: <b>'+n1(d.avance)+'%</b>. De '+d.n+' ideas propuestas, '+d.cerr+' están cerradas, '+d.proc+' en curso y '+d.nini+' sin empezar.';
+  else v='El avance '+amb+' es bajo: <b>'+n1(d.avance)+'%</b>. De '+d.n+' ideas propuestas, solo '+d.cerr+' están cerradas y '+d.nini+' no han empezado.';
+  if(d.rev>0) v+=' <b>Ojo:</b> '+d.rev+' de esas ideas ('+n1(d.rev/d.n*100)+'%) llegaron del archivo antiguo sin estado o sin fecha, así que este porcentaje todavía no es del todo confiable.';
 
   var areas=[''].concat(porArea().map(function(x){return x.area;}));
   var sel='<select onchange="setArea(this.value)">'+areas.map(function(a){
     return '<option value="'+esc(a)+'"'+(a===AREA?' selected':'')+'>'+(a?esc(a):'Todas las áreas')+'</option>';}).join('')+'</select>';
 
   var h='';
-  h+='<div class="filtros">'+sel+'<span style="font-size:12px;color:var(--stone)">Actualizado al abrir esta página · '+new Date().toLocaleString('es-PE')+'</span></div>';
-  h+='<div class="ver"><div class="vt">En una frase</div><div class="vx">'+veredicto+advert+'</div></div>';
-
+  h+='<div class="filtros">'+sel+'<span style="font-size:12px;color:var(--stone)">Datos al abrir esta página · '+new Date().toLocaleString('es-PE')+'</span></div>';
+  h+='<div class="ver"><div class="vt">En una frase</div><div class="vx">'+v+'</div></div>';
   h+='<div class="kpis">'+
-    kpi('primary',n1(d.avance)+'%','Avance global','Suma de los avances de cada idea ÷ '+d.n+' ideas')+
-    kpi('neu',d.n,'Ideas registradas','Todas las propuestas del período, cerradas o no')+
-    kpi('',d.cerr,'Cerradas','Al 100%: entregado o implementado')+
-    kpi('warn',d.proc,'En curso','Entre 30% y 70% de avance')+
-    kpi('bad',d.nini,'Sin empezar','En 0%: no iniciado')+
-    kpi('neu',d.conFoto,'Con foto','Ideas con evidencia cargada · '+d.fotos+' fotos en total')+
-    kpi('bad',d.venc,'Fecha vencida','Sin cerrar y con fecha de cierre ya pasada')+
-    kpi('warn',d.reprog,'Reprogramadas','Se les movió la fecha de cierre al menos una vez')+
+    kpi('primary',n1(d.avance)+'%','Avance global','Suma de los avances ÷ '+d.n+' ideas')+
+    kpi('neu',d.n,'Ideas propuestas','Todas, cerradas o no')+
+    kpi('',d.cerr,'Cerradas',n1(d.n?d.cerr/d.n*100:0)+'% del total')+
+    kpi('warn',d.proc,'En curso','Entre 30% y 70%')+
+    kpi('bad',d.venc,'Con fecha vencida','Abiertas y con la fecha ya pasada')+
+    kpi('neu',d.conFoto,'Con evidencia',n1(d.n?d.conFoto/d.n*100:0)+'% · '+d.fotos+' fotos')+
   '</div>';
 
-  var pctFoto=d.n?d.conFoto/d.n*100:0;
-  h+='<div class="insight"><b>Lo que más pesa:</b> solo '+n1(pctFoto)+'% de las ideas tiene evidencia fotográfica ('+d.conFoto+' de '+d.n+'). '+
-     'Sin foto de antes y después no se puede verificar que la mejora realmente se hizo — el estado depende de lo que declara cada área.</div>';
+  var peor=porArea().slice(-1)[0];
+  var ins;
+  if(d.venc>0) ins='<b>Lo que más pesa:</b> '+d.venc+' mejoras ya pasaron la fecha que su área se comprometió a cumplir y siguen abiertas'+
+    (peor&&!AREA?'. El área más rezagada es <b>'+esc(peor.area)+'</b>, con '+n1(peor.avance)+'% de avance sobre '+peor.n+' ideas':'')+'.';
+  else ins='<b>Lo que más pesa:</b> solo '+n1(d.n?d.conFoto/d.n*100:0)+'% de las ideas tiene foto. Sin evidencia, el estado depende de lo que declara cada área.';
+  h+='<div class="insight">'+ins+'</div>';
 
   h+='<div class="tabs">'+
-     tb('areas','Avance por área')+tb('estados','Distribución del avance')+
-     tb('vencidas','Vencidas ('+d.venc+')')+
-     tb('revisar','Por revisar ('+d.rev+')')+tb('detalle','Detalle')+'</div>';
+     tb('panorama','Panorama')+tb('areas','Áreas')+tb('riesgo','Riesgo')+
+     tb('evidencia','Evidencia')+tb('detalle','Detalle')+'</div>';
   h+='<div id="cont"></div>';
   h+=guia();
   $('app').innerHTML=h;
@@ -934,80 +962,219 @@ function tb(id,txt){return '<button class="tb'+(TAB===id?' on':'')+'" onclick="s
 function setTab(t){TAB=t;render();}
 function setArea(a){AREA=a;render();}
 
+function panel(t,sub,cuerpo){
+  return '<div class="panel"><div class="pt">'+t+'</div><div class="ph">'+sub+'</div>'+cuerpo+'</div>';
+}
+function lienzo(id,alto){return '<div class="cwrap" style="height:'+alto+'px"><canvas id="'+id+'"></canvas></div>';}
+
+/* ---------------- pestañas ---------------- */
 function pintarTab(){
-  var d=datos(), c=$('cont');
-  if(TAB==='areas'){
-    var pa=porArea();
-    c.innerHTML='<div class="panel"><div class="pt">Avance por área</div>'+
-      '<div class="ph">Porcentaje = suma de los avances de las ideas del área ÷ número de ideas de esa área. No es el promedio de porcentajes de otras áreas.</div>'+
-      '<div class="rk">'+pa.map(function(x){
-        return '<div class="rkr"><div>'+esc(x.area)+'<div style="font-size:10.5px;color:var(--stone)">'+x.cerr+' de '+x.n+' cerradas</div></div>'+
-        '<div class="rkb"><i style="width:'+x.avance.toFixed(1)+'%"></i></div>'+
-        '<div class="rkv">'+n1(x.avance)+'%</div></div>';}).join('')+'</div></div>';
-  }
-  else if(TAB==='estados'){
-    c.innerHTML='<div class="panel"><div class="pt">Cómo se reparten las '+d.n+' ideas</div>'+
-      '<div class="ph">Cada idea cae en uno de los cinco escalones de avance que usa el Círculo de Mejoras.</div>'+
-      '<div class="cwrap" style="height:320px"><canvas id="cEst"></canvas></div></div>';
-    var cnt=ESCALA.map(function(e){return d.f.filter(function(m){return Math.abs(m.pct-e.p)<0.001;}).length;});
-    new Chart($('cEst'),{type:'bar',data:{labels:ESCALA.map(function(e){return Math.round(e.p*100)+'% · '+e.c;}),
-      datasets:[{data:cnt,backgroundColor:['#C9D6D2','#F59E0B','#B45309','#4E6B78','#0F7A5A'],borderRadius:4,barThickness:34}]},
+  limpiarCharts();
+  var d=datos(),c=$('cont'),pa=porArea();
+
+  if(TAB==='panorama'){
+    var alto=Math.max(260,pa.length*30+70);
+    c.innerHTML=
+      panel('Cómo está repartida cada área',
+        'Cada barra es un área y suma 100%. El verde es lo cerrado, el ámbar lo que está en camino y el gris lo que todavía no arranca. Mientras más gris, más lejos está esa área.',
+        lienzo('cComp',alto))+
+      '<div class="grid2">'+
+      panel('En qué escalón están las '+d.n+' ideas',
+        'Los cinco escalones que usa el Círculo de Mejoras, del que no ha empezado al que ya está entregado.',
+        lienzo('cEsc',300))+
+      panel('Cerradas, en curso y sin empezar',
+        'La misma información en proporción, para ver de un vistazo cuánto del total está resuelto.',
+        lienzo('cDona',300))+
+      '</div>';
+
+    var lab=pa.map(function(x){return corto(x.area,20);});
+    mk('cComp',{type:'bar',
+      data:{labels:lab,datasets:[
+        {label:'Cerradas',data:pa.map(function(x){return x.cerr/x.n*100;}),backgroundColor:C_CERR,borderRadius:3},
+        {label:'En curso',data:pa.map(function(x){return x.curso/x.n*100;}),backgroundColor:C_CURSO,borderRadius:3},
+        {label:'Sin empezar',data:pa.map(function(x){return x.nada/x.n*100;}),backgroundColor:C_NADA,borderRadius:3}]},
       options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:function(x){return x.raw+' ideas ('+n1(x.raw/d.n*100)+'%)';}}}},
-        scales:{x:{beginAtZero:true,grid:{color:'#F1F6F4'},title:{display:true,text:'Cantidad de ideas'}},y:{grid:{display:false}}}}});
+        plugins:{legend:{position:'top'},tooltip:{callbacks:{label:function(x){
+          var a=pa[x.dataIndex];
+          var cant=x.datasetIndex===0?a.cerr:x.datasetIndex===1?a.curso:a.nada;
+          return x.dataset.label+': '+cant+' de '+a.n+' ('+n1(x.raw)+'%)';}}}},
+        scales:{x:{stacked:true,max:100,grid:{color:'#F1F6F4'},
+                   ticks:{callback:function(v){return v+'%';}}},
+                y:{stacked:true,grid:{display:false}}}}});
+
+    var cnt=ESCALA.map(function(e){return d.f.filter(function(m){return Math.abs(m.pct-e.p)<0.001;}).length;});
+    mk('cEsc',{type:'bar',
+      data:{labels:ESCALA.map(function(e){return Math.round(e.p*100)+'%';}),
+        datasets:[{data:cnt,backgroundColor:COL_ESC,borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{
+          title:function(x){return ESCALA[x[0].dataIndex].c;},
+          label:function(x){return x.raw+' ideas ('+n1(d.n?x.raw/d.n*100:0)+'%)';}}}},
+        scales:{y:{beginAtZero:true,grid:{color:'#F1F6F4'},title:{display:true,text:'Cantidad de ideas'}},
+                x:{grid:{display:false}}}}});
+
+    mk('cDona',{type:'doughnut',
+      data:{labels:['Cerradas','En curso','Sin empezar'],
+        datasets:[{data:[d.cerr,d.proc,d.nini],backgroundColor:[C_CERR,C_CURSO,C_NADA],borderWidth:2,borderColor:'#fff'}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+        plugins:{legend:{position:'bottom'},tooltip:{callbacks:{
+          label:function(x){return x.label+': '+x.raw+' ideas ('+n1(d.n?x.raw/d.n*100:0)+'%)';}}}}}});
   }
-  else if(TAB==='vencidas'){
-    var hoy=new Date().toISOString().substring(0,10);
-    var v=d.f.filter(function(m){var fc=(m.fechaCierre||'').substring(0,10);
-      return fc&&fc<hoy&&m.pct<1;}).sort(function(a,b){
-      return (a.fechaCierre||'').localeCompare(b.fechaCierre||'');});
-    c.innerHTML='<div class="panel"><div class="pt">Mejoras con la fecha de cierre ya pasada</div>'+
-      '<div class="ph">Se comprometió una fecha, esa fecha llegó y la mejora sigue abierta. Ordenadas de la más atrasada a la más reciente.</div>'+
-      (v.length?tabla(v,true):'<div style="padding:14px;color:var(--stone)">Ninguna mejora está vencida.</div>')+'</div>';
+
+  else if(TAB==='areas'){
+    c.innerHTML=
+      panel('Semáforo de áreas',
+        'Cada tarjeta es un área. El número grande es su avance; la barrita de abajo muestra cómo se reparten sus ideas entre cerradas, en curso y sin empezar. Ordenadas de mayor a menor avance.',
+        '<div class="agrid">'+pa.map(function(x){
+          var cls=x.avance>=70?'v':x.avance>=40?'a':'r';
+          return '<div class="acard '+cls+'" onclick="setArea(\''+esc(x.area).replace(/'/g,"")+'\')">'+
+            '<div class="an">'+esc(x.area)+'</div>'+
+            '<div class="av">'+n1(x.avance)+'%</div>'+
+            '<div class="abar">'+
+              '<i style="width:'+(x.cerr/x.n*100)+'%;background:'+C_CERR+'"></i>'+
+              '<i style="width:'+(x.curso/x.n*100)+'%;background:'+C_CURSO+'"></i>'+
+              '<i style="width:'+(x.nada/x.n*100)+'%;background:'+C_NADA+'"></i>'+
+            '</div>'+
+            '<div class="ad">'+x.n+' ideas · '+x.cerr+' cerradas'+
+            (x.venc?' · <b style="color:'+C_MAL+'">'+x.venc+' vencidas</b>':'')+'</div>'+
+          '</div>';}).join('')+'</div>')+
+      panel('Cuántas ideas propone cada área frente a cuánto avanza',
+        'Las barras son la cantidad de ideas; la línea es el porcentaje de avance. Un área con muchas barras y línea baja está proponiendo más de lo que alcanza a cerrar.',
+        lienzo('cMix',340));
+
+    mk('cMix',{data:{labels:pa.map(function(x){return corto(x.area,14);}),
+      datasets:[
+        {type:'bar',label:'Ideas propuestas',data:pa.map(function(x){return x.n;}),
+         backgroundColor:'#DCE5E2',borderRadius:4,order:2,yAxisID:'y'},
+        {type:'bar',label:'Ideas cerradas',data:pa.map(function(x){return x.cerr;}),
+         backgroundColor:C_CERR,borderRadius:4,order:1,yAxisID:'y'},
+        {type:'line',label:'Avance del área',data:pa.map(function(x){return x.avance;}),
+         borderColor:C_AZUL,backgroundColor:C_AZUL,borderWidth:2,pointRadius:3,tension:.3,order:0,yAxisID:'y1'}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'top'},tooltip:{callbacks:{label:function(x){
+          return x.dataset.type==='line'? 'Avance: '+n1(x.raw)+'%' : x.dataset.label+': '+x.raw;}}}},
+        scales:{y:{beginAtZero:true,position:'left',grid:{color:'#F1F6F4'},title:{display:true,text:'Ideas'}},
+                y1:{beginAtZero:true,max:100,position:'right',grid:{display:false},
+                    ticks:{callback:function(v){return v+'%';}},title:{display:true,text:'Avance'}},
+                x:{grid:{display:false},ticks:{maxRotation:60,minRotation:45}}}}});
   }
-  else if(TAB==='revisar'){
-    var r=d.f.filter(function(m){return m.revisar==='SI';});
-    c.innerHTML='<div class="panel"><div class="pt">Ideas que necesitan revisión</div>'+
-      '<div class="ph">Llegaron del archivo Excel antiguo sin estado registrado o sin fecha esperada de cierre. Hasta que se revisen, cuentan como 0% de avance, lo que puede estar castigando el porcentaje del área.</div>'+
-      (r.length?tabla(r):'<div style="padding:14px;color:var(--stone)">No queda ninguna idea pendiente de revisar.</div>')+'</div>';
+
+  else if(TAB==='riesgo'){
+    var v=vencidasList(),top=v.slice(0,12);
+    var conV=pa.filter(function(x){return x.venc>0;});
+    c.innerHTML=
+      (v.length?
+        panel('Las más atrasadas',
+          'Días transcurridos desde la fecha que el área se comprometió a cumplir. Mientras más larga la barra, más tiempo lleva vencida.',
+          lienzo('cAtraso',Math.max(220,top.length*30+60)))
+        :'<div class="panel"><div class="pt">Sin mejoras vencidas</div><div class="ph">Ninguna mejora abierta tiene la fecha de cierre pasada.</div></div>')+
+      (conV.length?panel('Vencidas por área',
+        'Cuántas mejoras vencidas acumula cada área. Es la lista de a quién preguntarle primero en la próxima reunión.',
+        lienzo('cVenc',Math.max(200,conV.length*28+60))):'')+
+      panel('Reprogramaciones',
+        'Cuántas mejoras tuvieron que mover su fecha de cierre al menos una vez. Una mejora reprogramada varias veces no va lenta: está trabada.',
+        '<div class="dual">'+
+        '<div class="dcell"><div class="dv">'+d.reprog+'</div><div class="dl">mejoras reprogramadas</div></div>'+
+        '<div class="dcell"><div class="dv">'+(d.n?n1(d.reprog/d.n*100):0)+'%</div><div class="dl">del total de ideas</div></div>'+
+        '</div>'+(d.reprog===0?'<div class="nota-inline">Todavía no hay reprogramaciones registradas. Este número empieza a contar desde que se usa el modo reunión: las del archivo antiguo no quedaron guardadas.</div>':''));
+
+    if(v.length) mk('cAtraso',{type:'bar',
+      data:{labels:top.map(function(m){return m.id+' · '+corto(m.idea,32);}),
+        datasets:[{data:top.map(function(m){return m._d;}),
+          backgroundColor:top.map(function(m){return m._d>90?C_MAL:m._d>30?'#B45309':C_CURSO;}),borderRadius:3}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{
+          label:function(x){return x.raw+' días vencida · avance '+Math.round(top[x.dataIndex].pct*100)+'%';}}}},
+        scales:{x:{beginAtZero:true,grid:{color:'#F1F6F4'},title:{display:true,text:'Días de atraso'}},
+                y:{grid:{display:false},ticks:{font:{size:10.5}}}}}});
+
+    if(conV.length) mk('cVenc',{type:'bar',
+      data:{labels:conV.map(function(x){return corto(x.area,20);}),
+        datasets:[{data:conV.map(function(x){return x.venc;}),backgroundColor:C_MAL,borderRadius:3}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{
+          label:function(x){return x.raw+' vencidas de '+conV[x.dataIndex].n+' ideas';}}}},
+        scales:{x:{beginAtZero:true,grid:{color:'#F1F6F4'},ticks:{precision:0}},y:{grid:{display:false}}}}});
   }
+
+  else if(TAB==='evidencia'){
+    c.innerHTML=
+      panel('Qué tanto se documenta cada área',
+        'Porcentaje de ideas del área que tienen al menos una foto cargada. Sin foto, que una mejora esté "cerrada" es solo una declaración.',
+        lienzo('cFoto',Math.max(240,pa.length*28+60)))+
+      panel('Fotos del antes contra fotos del después',
+        'Una evidencia sirve cuando se puede comparar. Si solo hay foto del resultado, no hay con qué contrastarla.',
+        lienzo('cAD',260)+
+        (d.nDesp>d.nAntes*1.3?'<div class="nota-inline">Hay '+n1(d.nDesp/Math.max(d.nAntes,1))+' veces más fotos del después que del antes. Las áreas documentan el logro, casi nunca la situación previa.</div>':''));
+
+    mk('cFoto',{type:'bar',
+      data:{labels:pa.map(function(x){return corto(x.area,20);}),
+        datasets:[{data:pa.map(function(x){return x.pctFoto;}),
+          backgroundColor:pa.map(function(x){return x.pctFoto>=50?C_CERR:x.pctFoto>=20?C_CURSO:C_NADA;}),borderRadius:3}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{
+          label:function(x){return pa[x.dataIndex].foto+' de '+pa[x.dataIndex].n+' ideas con foto ('+n1(x.raw)+'%)';}}}},
+        scales:{x:{beginAtZero:true,max:100,grid:{color:'#F1F6F4'},
+                   ticks:{callback:function(v){return v+'%';}}},y:{grid:{display:false}}}}});
+
+    mk('cAD',{type:'bar',
+      data:{labels:['Fotos del antes','Fotos del después'],
+        datasets:[{data:[d.nAntes,d.nDesp],backgroundColor:[C_AZUL,C_CERR],borderRadius:4,barThickness:60}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{y:{beginAtZero:true,grid:{color:'#F1F6F4'},title:{display:true,text:'Cantidad de fotos'}},
+                x:{grid:{display:false}}}}});
+  }
+
   else{
-    c.innerHTML='<div class="panel"><div class="pt">Detalle de las '+d.f.length+' ideas</div>'+
-      '<div class="ph">Ordenadas por área y código.</div>'+tabla(d.f.slice().sort(function(a,b){
-        return a.area===b.area?a.id.localeCompare(b.id):a.area.localeCompare(b.area);}))+'</div>';
+    var l=d.f.slice().sort(function(a,b){
+      return a.area===b.area?a.id.localeCompare(b.id):a.area.localeCompare(b.area);});
+    c.innerHTML=panel('Detalle de las '+l.length+' ideas',
+      'La lista completa, por si hace falta buscar una mejora puntual.',
+      '<input class="busca" type="search" placeholder="Buscar por código, área, idea o responsable…" oninput="filtraTabla(this.value)">'+
+      '<div id="tw">'+tabla(l)+'</div>');
   }
 }
 
-function tabla(l,conFecha){
+function filtraTabla(q){
+  q=(q||'').toLowerCase();
+  var fs=document.querySelectorAll('#tw tbody tr');
+  for(var i=0;i<fs.length;i++){
+    fs[i].style.display = fs[i].textContent.toLowerCase().indexOf(q)>=0 ? '' : 'none';
+  }
+}
+
+function tabla(l){
   var ids={};E.forEach(function(x){ids[x.idMejora]=(ids[x.idMejora]||0)+1;});
+  var hoy=hoyISO();
   return '<div style="overflow-x:auto"><table><thead><tr>'+
-    '<th>Código</th><th>Área</th><th>Idea de mejora</th><th>Avance</th>'+
-    (conFecha?'<th>Fecha de cierre</th>':'<th>Responsable</th>')+'<th>Fotos</th>'+
+    '<th>Código</th><th>Área</th><th>Idea de mejora</th><th>Avance</th><th>Fecha de cierre</th><th>Fotos</th>'+
     '</tr></thead><tbody>'+l.map(function(m){
+      var fc=(m.fechaCierre||'').substring(0,10);
+      var v=fc&&fc<hoy&&m.pct<1;
       var rp=(m.vecesReprog||0);
       return '<tr><td><b>'+esc(m.id)+'</b></td><td>'+esc(m.area)+'</td><td>'+esc(m.idea)+'</td>'+
-      '<td><span class="pill '+pil(m.pct)+'">'+Math.round(m.pct*100)+'% · '+esc(estadoDe(m.pct))+'</span>'+
+      '<td><span class="pill '+pil(m.pct)+'">'+Math.round(m.pct*100)+'%</span>'+
       (m.revisar==='SI'?' <span class="pill rev">revisar</span>':'')+'</td>'+
-      (conFecha?('<td>'+esc((m.fechaCierre||'').substring(0,10))+
-        (rp?'<div style="font-size:10.5px;color:#8A6100">reprogramada '+rp+'×</div>':'')+'</td>')
-       :('<td>'+esc(m.responsable)+'</td>'))+
+      '<td>'+(fc?esc(fc):'—')+(v?' <span class="pill mal">vencida</span>':'')+
+      (rp?'<div style="font-size:10.5px;color:#8A6100">reprogramada '+rp+'×</div>':'')+'</td>'+
       '<td>'+(ids[m.id]||0)+'</td></tr>';
     }).join('')+'</tbody></table></div>';
 }
 
 function guia(){
   return '<div class="guia"><h3>¿Cómo leo este tablero?</h3><dl>'+
-  '<dt>Círculo de Mejoras</dt><dd>Reunión semanal en la que cada una de las 16 áreas propone ideas para mejorar su propio trabajo y se les hace seguimiento hasta cerrarlas.</dd>'+
-  '<dt>Avance global</dt><dd>Se suma el avance de cada idea (0, 0.3, 0.5, 0.7 o 1) y se divide entre la cantidad de ideas. Una idea al 50% aporta la mitad que una cerrada. No se promedian porcentajes de área.</dd>'+
-  '<dt>Los cinco escalones</dt><dd>0% no iniciado · 30% solicitud realizada · 50% pedido en gestión · 70% confirmado por el proveedor · 100% entregado o implementado. Es la misma escala que ya se usaba en los archivos de cumplimiento por área.</dd>'+
-  '<dt>Por revisar</dt><dd>Ideas que vinieron del Excel antiguo sin estado o sin fecha de cierre. Se cargaron en 0% por defecto, así que hasta revisarlas el avance real podría ser mayor que el que muestra este tablero.</dd>'+
-  '<dt>Con foto</dt><dd>Ideas que tienen al menos una imagen cargada (antes o después). Es la única forma de verificar que la mejora se ejecutó de verdad y no solo se declaró cerrada.</dd>'+
-  '<dt>Fecha vencida</dt><dd>En la reunión semanal el área dice para cuándo estará lista la mejora. Si esa fecha ya pasó y la mejora sigue abierta, aparece aquí.</dd>'+
-  '<dt>Reprogramadas</dt><dd>Cuántas veces se movió la fecha comprometida. Una mejora reprogramada varias veces suele indicar que está trabada, no que avanza lento.</dd>'+
-  '<dt>¿De dónde salen los datos?</dt><dd>Del Google Sheet que Margot actualiza desde el panel de gestión. Esta página lo vuelve a leer cada vez que se abre o se refresca.</dd>'+
+  '<dt>Círculo de Mejoras</dt><dd>Reunión semanal en la que cada una de las 16 áreas propone ideas para mejorar su propio trabajo, y se les hace seguimiento hasta cerrarlas.</dd>'+
+  '<dt>Avance global</dt><dd>Se suma el avance de cada idea (0 · 0.3 · 0.5 · 0.7 · 1) y se divide entre la cantidad de ideas. Una idea al 50% aporta la mitad que una cerrada. No se promedian los porcentajes de las áreas entre sí.</dd>'+
+  '<dt>Los cinco escalones</dt><dd>0% no iniciado · 30% solicitud realizada · 50% pedido en gestión · 70% confirmado por el proveedor · 100% entregado o implementado. Es la misma escala que ya se usaba en los archivos de cumplimiento de cada área.</dd>'+
+  '<dt>Fecha vencida</dt><dd>En la reunión el área dice para cuándo estará lista la mejora. Si esa fecha ya pasó y la mejora sigue abierta, cuenta como vencida.</dd>'+
+  '<dt>Reprogramada</dt><dd>Cuántas veces se movió la fecha comprometida. Reprogramar varias veces suele indicar que la mejora está trabada, no que avanza despacio.</dd>'+
+  '<dt>Por revisar</dt><dd>Ideas que vinieron del Excel antiguo sin estado o sin fecha. Se cargaron en 0%, así que hasta revisarlas el avance real podría ser mayor que el que muestra este tablero.</dd>'+
+  '<dt>Con evidencia</dt><dd>Ideas que tienen al menos una foto cargada. Es la única forma de verificar que la mejora se ejecutó y no solo se declaró cerrada.</dd>'+
+  '<dt>¿De dónde salen los datos?</dt><dd>Del Google Sheet que se actualiza desde el panel de gestión. Esta página lo vuelve a leer cada vez que se abre o se refresca.</dd>'+
   '</dl></div>';
 }
-window.setTab=setTab;window.setArea=setArea;
+window.setTab=setTab;window.setArea=setArea;window.filtraTabla=filtraTabla;
 }
 
 var DASH_JS = dashJsFuente.toString().replace(/^[^{]*\{/,'').replace(/\}\s*$/,'');
