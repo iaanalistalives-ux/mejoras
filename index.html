@@ -23,6 +23,8 @@ body{margin:0;background:var(--warm-light);color:#333;font-family:Calibri,Arial,
 .hspace{flex:1;}
 .hstat{color:#F1F6F4;font-size:11px;text-align:right;line-height:1.5;}
 .hstat b{color:#fff;}
+.hback{color:#fff;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap;}
+.hback:hover{background:rgba(255,255,255,.22);}
 
 .wrap{max-width:1200px;margin:0 auto;padding:16px;}
 
@@ -88,6 +90,13 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 .esc.on .ep{color:var(--sage);}
 @media(max-width:560px){.escala{grid-template-columns:repeat(2,1fr);}}
 
+.bloques{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px;}
+@media(max-width:640px){.bloques{grid-template-columns:1fr;}}
+.bloque{background:var(--warm-light);border-radius:10px;padding:13px;border-top:4px solid var(--slate);}
+.bloque.despues{border-top-color:var(--sage);}
+.bloque .bt{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--stone);margin-bottom:9px;}
+.bloque .bn{font-size:10.5px;font-weight:600;background:#fff;border-radius:99px;padding:2px 9px;color:var(--stone);}
+.bloque textarea{background:#fff;min-height:64px;margin-bottom:10px;font-size:13px;}
 .fotos{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px;}
 @media(max-width:600px){.fotos{grid-template-columns:1fr;}}
 .fcol{background:var(--warm-light);border-radius:10px;padding:12px;}
@@ -134,6 +143,8 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 .chip.on .cn{background:rgba(255,255,255,.25);}
 .rcard{background:#fff;border:1px solid var(--warm);border-radius:12px;padding:14px 15px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
 .rcard.tocada{border-color:var(--sage);box-shadow:0 0 0 2px rgba(15,122,90,.15);}
+.rcard.cerrada{background:#FAFCFB;}
+#rBusca{width:100%;font-family:inherit;font-size:14px;border:1px solid var(--warm);border-radius:8px;padding:10px 12px;}
 .rlbl{font-size:11px;font-weight:700;color:var(--stone);text-transform:uppercase;letter-spacing:.4px;margin:11px 0 5px;}
 .rfila{display:flex;gap:10px;align-items:flex-end;}
 .rfila>div:first-child{flex:1;}
@@ -155,6 +166,7 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
     <div class="hsub">Panel de gestión · Margot</div>
   </div>
   <div class="hspace"></div>
+  <a class="hback" href="https://iaanalistalives-ux.github.io/tablero-margot/">← Tablero principal</a>
   <div class="hstat" id="hstat"></div>
 </div>
 
@@ -180,6 +192,18 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
         <option value="1">100% · Entregado / cerrado</option>
       </select>
       <input type="search" id="fTexto" placeholder="Buscar en la idea, responsable o comentario…" oninput="pintar()">
+      <select id="fFecha" onchange="cambioFiltroFecha()">
+        <option value="">Cualquier fecha de compromiso</option>
+        <option value="venc">Ya vencidas</option>
+        <option value="hoy">Vencen hoy</option>
+        <option value="7">Próximos 7 días</option>
+        <option value="30">Próximos 30 días</option>
+        <option value="sin">Sin fecha asignada</option>
+        <option value="rango">Entre dos fechas…</option>
+      </select>
+      <span id="rangoBox" style="display:none;align-items:center;gap:6px;font-size:12.5px;color:var(--stone);">
+        <input type="date" id="fDesde" onchange="pintar()"> a <input type="date" id="fHasta" onchange="pintar()">
+      </span>
       <label class="chk"><input type="checkbox" id="fRevisar" onchange="pintar()"> Solo por revisar</label>
       <label class="chk"><input type="checkbox" id="fFoto" onchange="pintar()"> Solo con fotos</label>
       <button class="btn" onclick="nuevaMejora()">+ Nueva mejora</button>
@@ -329,6 +353,31 @@ function falloCarga(e,noReintentar){
 
 function fotosDe(id){return EVID.filter(function(e){return e.idMejora===id;});}
 
+function cambioFiltroFecha(){
+  $('rangoBox').style.display=($('fFecha').value==='rango')?'inline-flex':'none';
+  pintar();
+}
+
+function pasaFecha(m){
+  var f=$('fFecha').value;
+  if(!f)return true;
+  var fc=(m.fechaCierre||'').substring(0,10);
+  if(f==='sin')return !fc;
+  if(!fc)return false;
+  var hoy=hoyISO();
+  if(f==='venc')return fc<hoy&&m.pct<1;
+  if(f==='hoy')return fc===hoy;
+  if(f==='rango'){
+    var d=$('fDesde').value,h=$('fHasta').value;
+    if(d&&fc<d)return false;
+    if(h&&fc>h)return false;
+    return true;
+  }
+  var lim=new Date();lim.setDate(lim.getDate()+parseInt(f,10));
+  var limISO=lim.getFullYear()+'-'+('0'+(lim.getMonth()+1)).slice(-2)+'-'+('0'+lim.getDate()).slice(-2);
+  return fc>=hoy&&fc<=limISO;
+}
+
 function filtradas(){
   var a=$('fArea').value, es=$('fEstado').value, tx=$('fTexto').value.toLowerCase().trim();
   var rev=$('fRevisar').checked, fo=$('fFoto').checked;
@@ -337,7 +386,8 @@ function filtradas(){
     if(es!==''&&Math.abs(m.pct-parseFloat(es))>0.001)return false;
     if(rev&&m.revisar!=='SI')return false;
     if(fo&&!fotosDe(m.id).length)return false;
-    if(tx){var h=(m.idea+' '+m.responsable+' '+m.comentarios+' '+m.id+' '+m.resultado).toLowerCase();
+    if(!pasaFecha(m))return false;
+    if(tx){var h=(m.idea+' '+m.responsable+' '+m.comentarios+' '+m.id+' '+m.resultado+' '+(m.situacionAntes||'')).toLowerCase();
       if(h.indexOf(tx)<0)return false;}
     return true;
   });
@@ -372,24 +422,40 @@ function pintar(mantener){
 }
 
 /* ---------- DETALLE ---------- */
+function capturarForm(){
+  if(!ACTUAL)return;
+  var f;
+  if(f=$('cIdea'))ACTUAL.idea=f.value;
+  if(f=$('cResp'))ACTUAL.responsable=f.value;
+  if(f=$('cFecha'))ACTUAL.fechaCierre=f.value;
+  if(f=$('cComent'))ACTUAL.comentarios=f.value;
+  if(f=$('cAntes'))ACTUAL.situacionAntes=f.value;
+  if(f=$('cResultado'))ACTUAL.resultado=f.value;
+}
+function repintarModal(){
+  capturarForm();
+  $('mBody').innerHTML=formHTML(ACTUAL)+bloquesHTML(ACTUAL);
+}
+
 function abrir(id){
   var m=null;for(var i=0;i<MEJORAS.length;i++)if(MEJORAS[i].id===id){m=MEJORAS[i];break;}
   if(!m)return;
   ACTUAL=JSON.parse(JSON.stringify(m));ACTUAL.nueva=false;
   $('mId').textContent=m.id;$('mArea').textContent=m.area;
-  $('mBody').innerHTML=formHTML(ACTUAL)+galeriaHTML(m.id);
+  $('mBody').innerHTML=formHTML(ACTUAL)+bloquesHTML(ACTUAL);
   $('modal').classList.add('on');document.body.style.overflow='hidden';
 }
 
 function nuevaMejora(){
   ACTUAL={nueva:true,id:'',area:$('fArea').value||AREAS[0]||'',idea:'',evaluacion:'',responsable:'',
-          fechaCierre:'',pct:0,impacto:'',resultado:'',comentarios:'',revisar:''};
+          fechaCierre:'',pct:0,impacto:'',resultado:'',comentarios:'',situacionAntes:'',revisar:''};
   $('mId').textContent='Nueva mejora';
   $('mArea').textContent='El código se genera al guardar';
   $('mBody').innerHTML=
     '<label>Área</label><select class="full" id="cArea">'+
       AREAS.map(function(a){return '<option'+(a===ACTUAL.area?' selected':'')+'>'+esc(a)+'</option>';}).join('')+
-    '</select>'+formHTML(ACTUAL,true);
+    '</select>'+formHTML(ACTUAL,true)+
+    '<div class="note" style="margin-top:16px">Guarda primero la mejora para que reciba su código. Después podrás subirle fotos del antes y del después.</div>';
   $('modal').classList.add('on');document.body.style.overflow='hidden';
 }
 
@@ -401,10 +467,9 @@ function formHTML(m,esNueva){
              '<div class="ep">'+Math.round(e.p*100)+'%</div><div class="el">'+e.c+'</div></button>';}).join('')+'</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'+
      '<div><label>Responsable</label><input type="text" id="cResp" value="'+esc(m.responsable)+'"></div>'+
-     '<div><label>Fecha esperada de cierre</label><input type="date" id="cFecha" value="'+esc((m.fechaCierre||'').substring(0,10))+'"></div>'+
+     '<div><label>Fecha comprometida de cierre</label><input type="date" id="cFecha" value="'+esc((m.fechaCierre||'').substring(0,10))+'"></div>'+
      '</div>';
-  h+='<label>Resultado obtenido</label><textarea id="cResultado">'+esc(m.resultado)+'</textarea>';
-  h+='<label>Comentarios</label><textarea id="cComent">'+esc(m.comentarios)+'</textarea>';
+  h+='<label>Comentarios generales</label><textarea id="cComent" placeholder="Notas sueltas, acuerdos, quién quedó a cargo…">'+esc(m.comentarios)+'</textarea>';
   if(!esNueva&&m.revisar==='SI'){
     h+='<div class="note" style="border-left-color:var(--tan);margin-top:14px;">'+
        '<b>Esta mejora quedó marcada para revisar.</b> Llegó de la migración sin estado o sin fecha de cierre. '+
@@ -424,21 +489,27 @@ function setPct(p){
   for(var i=0;i<b.length;i++)b[i].classList.toggle('on',Math.abs(parseFloat(b[i].dataset.p)-p)<0.001);
 }
 
-function galeriaHTML(id){
-  var f=fotosDe(id);
-  function col(tipo,titulo){
+/* --- bloques ANTES y DESPUÉS: cada uno con su texto y sus fotos --- */
+function bloquesHTML(m){
+  var f=fotosDe(m.id);
+  function bloque(tipo,titulo,idTexto,valor,ph){
     var l=f.filter(function(x){return x.tipo===tipo;});
-    return '<div class="fcol"><div class="ft"><span>'+titulo+'</span><span>'+l.length+'</span></div>'+
+    return '<div class="bloque '+tipo.toLowerCase()+'">'+
+      '<div class="bt"><span>'+titulo+'</span><span class="bn">'+l.length+' foto'+(l.length===1?'':'s')+'</span></div>'+
+      '<textarea id="'+idTexto+'" placeholder="'+ph+'">'+esc(valor||'')+'</textarea>'+
       (l.length?'<div class="fgrid">'+l.map(function(x){
         return '<div class="fth"><img src="'+esc(x.url)+'" alt="'+esc(x.nombre)+'" loading="lazy" onclick="zoom(\''+esc(x.url)+'\')">'+
                '<button class="del" onclick="event.stopPropagation();borrarFoto(\''+x.idEv+'\')" title="Eliminar">&times;</button></div>';
-      }).join('')+'</div>':'<div class="fvacio">Sin fotos todavía.</div>')+
-      '<div class="up"><label class="uplbl" for="up'+tipo+'">📷 Agregar foto '+titulo.toLowerCase()+'</label>'+
-      '<input type="file" id="up'+tipo+'" accept="image/*" multiple onchange="subir(this,\''+id+'\',\''+tipo+'\')"></div></div>';
+      }).join('')+'</div>':'<div class="fvacio">Todavía no hay fotos.</div>')+
+      '<div class="up"><label class="uplbl" for="up'+tipo+'">📷 Agregar foto'+(l.length?' más':'s')+' · '+titulo.toLowerCase()+'</label>'+
+      '<input type="file" id="up'+tipo+'" accept="image/*" multiple onchange="subir(this,\''+m.id+'\',\''+tipo+'\')"></div></div>';
   }
-  return '<div class="sectitle">Evidencia fotográfica</div>'+
-    '<div style="font-size:12px;color:var(--stone);margin-bottom:8px;">Puedes tomar la foto con la cámara o elegir una que te hayan enviado. Se pueden subir varias a la vez.</div>'+
-    '<div class="fotos">'+col('ANTES','Antes')+col('DESPUES','Después')+'</div>';
+  return '<div class="sectitle">Antes y después</div>'+
+    '<div style="font-size:12px;color:var(--stone);margin-bottom:10px;">Puedes tomar la foto con la cámara o elegir las que te hayan enviado. No hay límite: se pueden subir varias a la vez y agregar más después.</div>'+
+    '<div class="bloques">'+
+      bloque('ANTES','Antes','cAntes',m.situacionAntes,'¿Cuál era el problema? ¿Cómo estaba antes de la mejora?')+
+      bloque('DESPUES','Después','cResultado',m.resultado,'¿Cómo quedó? ¿Qué se logró con la mejora?')+
+    '</div>';
 }
 
 function zoom(u){$('lbImg').src=u;$('lb').classList.add('on');}
@@ -468,6 +539,7 @@ function subir(input,idMejora,tipo){
   var files=Array.prototype.slice.call(input.files||[]);
   if(!files.length)return;
   input.value='';
+  capturarForm();
   var i=0;
   function siguiente(){
     if(i>=files.length){
@@ -475,7 +547,7 @@ function subir(input,idMejora,tipo){
       jsonp({accion:'evidencias'},function(r){
         if(!r.ok)return;
         EVID=r.evidencias||[];
-        if(ACTUAL&&ACTUAL.id===idMejora)$('mBody').innerHTML=formHTML(ACTUAL)+galeriaHTML(idMejora);
+        if(ACTUAL&&ACTUAL.id===idMejora)repintarModal();
         pintar(true);
       });
       return;
@@ -495,10 +567,11 @@ function subir(input,idMejora,tipo){
 
 function borrarFoto(idEv){
   if(!confirm('¿Eliminar esta foto? Se envía a la papelera de Drive.'))return;
+  capturarForm();
   post({accion:'borrarEvidencia',idEv:idEv}).then(function(r){
     if(!r.ok){toast('Error: '+r.error,true);return;}
     EVID=EVID.filter(function(e){return e.idEv!==idEv;});
-    $('mBody').innerHTML=formHTML(ACTUAL)+galeriaHTML(ACTUAL.id);
+    repintarModal();
     pintar(true);toast('Foto eliminada');
   });
 }
@@ -507,8 +580,11 @@ function borrarFoto(idEv){
 function guardar(){
   var idea=$('cIdea').value.trim();
   if(!idea){toast('Escribe la idea de mejora',true);return;}
+  var ta=$('cAntes'),tr=$('cResultado');
   var d={idea:idea,pct:ACTUAL.pct,responsable:$('cResp').value.trim(),
-         fechaCierre:$('cFecha').value,resultado:$('cResultado').value.trim(),
+         fechaCierre:$('cFecha').value,
+         resultado:tr?tr.value.trim():'',
+         situacionAntes:ta?ta.value.trim():'',
          comentarios:$('cComent').value.trim(),usuario:USUARIO};
   $('btnGuardar').disabled=true;$('btnGuardar').textContent='Guardando…';
   var p;
@@ -557,7 +633,7 @@ function prepReunion(){
 function iniciarReunion(){
   REU.area=$('rArea').value;
   REU.fecha=$('rFecha').value||hoyISO();
-  REU.activa=true;REU.cambios={};REU.filtro='hoy';
+  REU.activa=true;REU.cambios={};REU.filtro='hoy';REU.busca='';
   $('rSetup').style.display='none';
   pintarReunion();
   window.scrollTo(0,0);
@@ -620,16 +696,31 @@ function pintarReunion(){
      chip('vencidas','Vencidas',g.vencidas.length)+
      chip('todas','Todas las pendientes',g.todas.length)+
      chip('sinFecha','Sin fecha',g.sinFecha.length)+
+     chip('buscar','Buscar otra',null)+
      '</div>';
 
-  var l = REU.filtro==='hoy'?g.hoy : REU.filtro==='vencidas'?g.vencidas :
-          REU.filtro==='sinFecha'?g.sinFecha : g.todas;
+  var l;
+  if(REU.filtro==='buscar'){
+    var q=(REU.busca||'').toLowerCase().trim();
+    var todas=MEJORAS.filter(function(m){return m.area===REU.area;});
+    l=q?todas.filter(function(m){
+      return (m.id+' '+m.idea+' '+m.responsable+' '+m.comentarios).toLowerCase().indexOf(q)>=0;}):[];
+    h+='<div class="card" style="padding:13px 15px;margin-bottom:12px;">'+
+       '<input type="search" id="rBusca" placeholder="Escribe el código o parte de la idea…" '+
+       'value="'+esc(REU.busca||'')+'" oninput="reuBusca(this.value)">'+
+       '<div style="font-size:11.5px;color:var(--stone);margin-top:7px;">'+
+       'Busca entre las '+todas.length+' mejoras de '+esc(REU.area)+', incluidas las ya cerradas. '+
+       'Sirve cuando en la reunión tocan una que no estaba programada para hoy.</div></div>';
+  } else {
+    l = REU.filtro==='hoy'?g.hoy : REU.filtro==='vencidas'?g.vencidas :
+        REU.filtro==='sinFecha'?g.sinFecha : g.todas;
+  }
 
   if(!l.length){
-    h+='<div class="card" style="text-align:center;color:var(--stone);padding:26px 18px;">'+
-       'No hay mejoras en este grupo.'+
+    h+='<div class="lista"><div style="text-align:center;color:var(--stone);padding:26px 18px;background:#fff;border:1px solid var(--warm);border-radius:12px;">'+
+       (REU.filtro==='buscar'?'Escribe algo para buscar.':'No hay mejoras en este grupo.')+
        (REU.filtro==='hoy'?'<div style="margin-top:10px"><button class="btn sec sm" onclick="filtroReu(\'todas\')">Ver las pendientes por cerrar</button></div>':'')+
-       '</div>';
+       '</div></div>';
   } else {
     h+='<div class="lista">'+l.map(tarjetaReunion).join('')+'</div>';
   }
@@ -648,11 +739,28 @@ function pintarReunion(){
 
 function chip(id,txt,n){
   return '<button class="chip'+(REU.filtro===id?' on':'')+'" onclick="filtroReu(\''+id+'\')">'+
-         txt+' <span class="cn">'+n+'</span></button>';
+         txt+(n===null?'':' <span class="cn">'+n+'</span>')+'</button>';
+}
+function reuBusca(v){
+  REU.busca=v;
+  var g=gruposReunion();
+  var q=v.toLowerCase().trim();
+  var todas=MEJORAS.filter(function(m){return m.area===REU.area;});
+  var l=q?todas.filter(function(m){
+    return (m.id+' '+m.idea+' '+m.responsable+' '+m.comentarios).toLowerCase().indexOf(q)>=0;}):[];
+  var cont=document.querySelector('#rCont .lista');
+  var vacio=document.querySelector('#rCont .card.vacio');
+  var html=l.length?l.map(tarjetaReunion).join(''):'';
+  if(cont)cont.innerHTML=html||'<div style="text-align:center;color:var(--stone);padding:18px;">'+
+    (q?'No hay mejoras que coincidan.':'Escribe algo para buscar.')+'</div>';
+  else if(vacio)vacio.outerHTML='<div class="lista">'+(html||'<div style="text-align:center;color:var(--stone);padding:18px;">'+
+    (q?'No hay mejoras que coincidan.':'Escribe algo para buscar.')+'</div>')+'</div>';
 }
 function filtroReu(f){
   var nt=$('rNota');if(nt)REU.nota=nt.value;
+  var bs=$('rBusca');if(bs)REU.busca=bs.value;
   REU.filtro=f;pintarReunion();
+  if(f==='buscar'){var e=$('rBusca');if(e)e.focus();}
 }
 
 function tarjetaReunion(m){
@@ -662,8 +770,9 @@ function tarjetaReunion(m){
   var tocada=Object.keys(c).length>0;
   var venc=fc&&fc<REU.fecha&&pct<1;
   var nf=fotosDe(m.id).length;
-  var h='<div class="rcard'+(tocada?' tocada':'')+'" id="rc-'+m.id+'">';
+  var h='<div class="rcard'+(tocada?' tocada':'')+(pct>=1?' cerrada':'')+'" id="rc-'+m.id+'">';
   h+='<div class="ihead"><span class="iid">'+esc(m.id)+'</span>'+
+     (pct>=1?'<span class="pill ok">cerrada</span>':'')+
      (venc?'<span class="pill rev">vencida</span>':'')+
      (m.revisar==='SI'?'<span class="pill rev">por revisar</span>':'')+'</div>';
   h+='<div class="itxt">'+esc(m.idea)+'</div>';
