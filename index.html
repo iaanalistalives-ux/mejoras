@@ -264,7 +264,7 @@ function pillPct(p){return p>=1?'ok':p>0?'mid':'no';}
 /* ---------- JSONP (lectura, evita CORS) ---------- */
 function jsonp(params, cb, errCb){
   var fn='cb_'+Math.random().toString(36).slice(2);
-  var t=setTimeout(function(){limpiar();errCb&&errCb('Tiempo de espera agotado');},45000);
+  var t=setTimeout(function(){limpiar();errCb&&errCb('Tiempo de espera agotado (90 s)');},90000);
   window[fn]=function(r){clearTimeout(t);limpiar();cb(r);};
   function limpiar(){try{delete window[fn];}catch(e){window[fn]=undefined;}
     if(s&&s.parentNode)s.parentNode.removeChild(s);}
@@ -283,27 +283,48 @@ function post(data){
 }
 
 /* ---------- CARGA ---------- */
+var REINTENTOS=0;
+
 function cargar(){
   if(API.indexOf('PEGA_AQUI')===0){
     $('errBox').style.display='block';
     $('errBox').innerHTML='<b>Falta configurar la aplicación.</b> Abre este archivo y reemplaza <code>PEGA_AQUI_LA_URL_DE_LA_APP_WEB</code> por la URL /exec de tu Apps Script.';
     $('lista').innerHTML='';return;
   }
-  $('lista').innerHTML='<div class="load">Cargando mejoras…</div>';
-  jsonp({accion:'todo'},function(r){
-    if(!r.ok){$('errBox').style.display='block';$('errBox').textContent='Error: '+r.error;return;}
-    MEJORAS=r.mejoras||[];EVID=r.evidencias||[];
-    AREAS=(r.catalogos&&r.catalogos.areas||[]).map(function(a){return a.area;});
-    if(!AREAS.length){var set={};MEJORAS.forEach(function(m){set[m.area]=1;});AREAS=Object.keys(set).sort();}
+  $('errBox').style.display='none';
+  $('lista').innerHTML='<div class="load">Cargando mejoras…<div style="font-size:12px;margin-top:8px;color:#8a9a95">Si estás con datos móviles puede tardar unos segundos.</div></div>';
+  jsonp({accion:'mejoras'},function(r){
+    if(!r.ok){falloCarga('El servidor respondió con un error: '+r.error,true);return;}
+    REINTENTOS=0;
+    MEJORAS=r.mejoras||[];
+    var set={};MEJORAS.forEach(function(m){if(m.area)set[m.area]=1;});
+    AREAS=Object.keys(set).sort();
     var sel=$('fArea');sel.innerHTML='<option value="">Todas las áreas</option>';
     AREAS.forEach(function(a){var o=document.createElement('option');o.value=a;o.textContent=a;sel.appendChild(o);});
     $('errBox').style.display='none';
     pintar();
-  },function(e){
-    $('errBox').style.display='block';
-    $('errBox').innerHTML='<b>No se pudo conectar.</b> '+esc(e)+'. Revisa que la app web esté implementada con acceso "Cualquier usuario".';
-    $('lista').innerHTML='';
-  });
+    /* las fotos se piden después: así la lista aparece rápido en el celular */
+    jsonp({accion:'evidencias'},function(r2){
+      if(r2&&r2.ok){EVID=r2.evidencias||[];pintar(true);}
+    },function(){ /* si fallan las fotos, la lista igual sirve */ });
+  },falloCarga);
+}
+
+function falloCarga(e,noReintentar){
+  if(!noReintentar&&REINTENTOS<1){
+    REINTENTOS++;
+    $('lista').innerHTML='<div class="load">La conexión falló. Reintentando…</div>';
+    setTimeout(cargar,2500);
+    return;
+  }
+  var enApp=/FBAN|FBAV|Instagram|Line|WhatsApp|Micromessenger/i.test(navigator.userAgent);
+  $('errBox').style.display='block';
+  $('errBox').innerHTML='<b>No se pudieron cargar las mejoras.</b> '+esc(e)+
+    '<div style="margin-top:10px;font-weight:400;line-height:1.6">'+
+    (enApp?'Parece que abriste el enlace dentro de otra aplicación (WhatsApp, Teams o similar). Esos navegadores internos bloquean la conexión con Google. <b>Toca los tres puntos y elige «Abrir en Chrome».</b><br>':'')+
+    'Si el problema sigue: revisa que en Apps Script la implementación tenga acceso para «Cualquier usuario», y que la señal sea estable.</div>'+
+    '<div style="margin-top:12px"><button class="btn" onclick="REINTENTOS=0;cargar()">Reintentar</button></div>';
+  $('lista').innerHTML='';
 }
 
 function fotosDe(id){return EVID.filter(function(e){return e.idMejora===id;});}
@@ -836,7 +857,7 @@ function corto(s,n){s=String(s||'');return s.length>n?s.substring(0,n-1)+'…':s
 
 function jsonp(params,cb,err){
   var fn='d_'+Math.random().toString(36).slice(2);
-  var t=setTimeout(function(){lim();err&&err('Tiempo agotado');},45000);
+  var t=setTimeout(function(){lim();err&&err('Tiempo agotado (90 s)');},90000);
   window[fn]=function(r){clearTimeout(t);lim();cb(r);};
   function lim(){try{delete window[fn];}catch(e){}if(s&&s.parentNode)s.parentNode.removeChild(s);}
   var q=[];for(var k in params)q.push(encodeURIComponent(k)+'='+encodeURIComponent(params[k]));
@@ -860,12 +881,25 @@ if(typeof Chart!=='undefined'){
 function limpiarCharts(){for(var i=0;i<CHARTS.length;i++){try{CHARTS[i].destroy();}catch(e){}}CHARTS=[];}
 function mk(id,cfg){var el=$(id);if(!el||typeof Chart==='undefined')return;CHARTS.push(new Chart(el,cfg));}
 
-jsonp({accion:'todo'},function(r){
-  if(!r.ok){$('app').innerHTML='<div class="err">Error al leer los datos: '+esc(r.error)+'</div>';return;}
-  M=r.mejoras||[];E=r.evidencias||[];render();
-},function(e){
-  $('app').innerHTML='<div class="err"><b>No se pudo conectar con el Sheet.</b> '+esc(e)+'</div>';
-});
+var REI=0;
+function cargarDatos(){
+  $('app').innerHTML='<div class="load">Cargando datos del Círculo de Mejoras…</div>';
+  jsonp({accion:'mejoras'},function(r){
+    if(!r.ok){$('app').innerHTML='<div class="err">Error al leer los datos: '+esc(r.error)+'</div>';return;}
+    REI=0;M=r.mejoras||[];render();
+    jsonp({accion:'evidencias'},function(r2){if(r2&&r2.ok){E=r2.evidencias||[];render();}},function(){});
+  },function(e){
+    if(REI<1){REI++;$('app').innerHTML='<div class="load">La conexión falló. Reintentando…</div>';
+      setTimeout(cargarDatos,2500);return;}
+    var enApp=/FBAN|FBAV|Instagram|Line|WhatsApp|Micromessenger/i.test(navigator.userAgent);
+    $('app').innerHTML='<div class="err"><b>No se pudo conectar con el Sheet.</b> '+esc(e)+
+      '<div style="margin-top:10px;font-weight:400;line-height:1.6">'+
+      (enApp?'Parece que abriste el enlace dentro de otra aplicación. Toca los tres puntos y elige «Abrir en Chrome».<br>':'')+
+      'Revisa la señal y que la implementación tenga acceso para «Cualquier usuario».</div>'+
+      '<div style="margin-top:12px"><button class="tb on" onclick="REI=0;cargarDatos()">Reintentar</button></div></div>';
+  });
+}
+cargarDatos();
 
 /* ---------------- cálculos ---------------- */
 function datos(){
@@ -1175,6 +1209,7 @@ function guia(){
   '</dl></div>';
 }
 window.setTab=setTab;window.setArea=setArea;window.filtraTabla=filtraTabla;
+window.cargarDatos=cargarDatos;
 }
 
 var DASH_JS = dashJsFuente.toString().replace(/^[^{]*\{/,'').replace(/\}\s*$/,'');
