@@ -209,11 +209,17 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 .dnom:hover{text-decoration:underline;}
 .ddel{background:none;border:none;color:var(--rose);font-size:19px;line-height:1;cursor:pointer;padding:0 4px;flex:0 0 auto;}
 
-/* ---- confirmación de borrado ---- */
-.borrabox{margin-top:16px;background:#FBE9E9;border:1px solid #F0B9B9;border-radius:10px;padding:15px 17px;}
-.bbt{font-size:14.5px;font-weight:700;color:var(--rose);margin-bottom:7px;}
-.bbx{font-size:12.5px;color:#5c3030;line-height:1.6;}
-.bbb{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+
+.modal2{display:none;position:fixed;inset:0;background:rgba(14,59,54,.65);z-index:150;align-items:center;justify-content:center;padding:20px;}
+.modal2.on{display:flex;}
+.bbox{background:#fff;border-radius:14px;max-width:440px;width:100%;padding:22px 24px;box-shadow:0 14px 46px rgba(0,0,0,.35);border-top:5px solid var(--rose);max-height:90vh;overflow-y:auto;}
+.bbt{font-size:17px;font-weight:700;color:var(--rose);margin-bottom:6px;}
+.bbidea{font-size:13px;color:#333;background:var(--warm-light);border-radius:8px;padding:9px 11px;margin-bottom:12px;line-height:1.45;}
+.bbx{font-size:13px;color:#333;line-height:1.6;}
+.bbnota{font-size:11.5px;color:var(--stone);line-height:1.55;margin-top:10px;padding-top:10px;border-top:1px solid var(--warm-light);}
+.bberr{background:#FBE9E9;border:1px solid #F0B9B9;border-radius:8px;padding:11px 13px;margin-top:13px;font-size:12.5px;color:#B91C1C;line-height:1.55;}
+.bbb{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+.bbb .btn{flex:1;min-width:130px;}
 .btn.danger{background:var(--rose);border:none;color:#fff;}
 .btn.danger:hover{background:#B91C1C;}
 .load{text-align:center;padding:50px 20px;color:var(--stone);font-size:14px;}
@@ -323,8 +329,12 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
       <div style="flex:1"></div>
       <button class="btn danger sm" id="btnBorrar" onclick="pedirBorrado()" style="display:none">Eliminar mejora</button>
     </div>
-    <div id="confirmaBorrado"></div>
   </div>
+</div>
+
+<!-- ventana propia de confirmación de borrado -->
+<div class="modal2" id="mBorrar">
+  <div class="bbox" id="confirmaBorrado"></div>
 </div>
 
 <div class="lightbox" id="lb" onclick="this.classList.remove('on')">
@@ -909,7 +919,11 @@ function resaltar(id){
 
 function cerrar(){
   $('modal').classList.remove('on');document.body.style.overflow='';
-  $('confirmaBorrado').innerHTML='';ACTUAL=null;
+  cerrarBorrado();ACTUAL=null;
+}
+function cerrarBorrado(){
+  $('mBorrar').classList.remove('on');
+  $('confirmaBorrado').innerHTML='';
 }
 
 /* ---------- ELIMINAR LA MEJORA COMPLETA ---------- */
@@ -922,35 +936,44 @@ function pedirBorrado(){
   if(imgs)detalle.push(imgs+' foto'+(imgs===1?'':'s'));
   if(docs)detalle.push(docs+' archivo'+(docs===1?'':'s'));
   $('confirmaBorrado').innerHTML=
-    '<div class="borrabox">'+
-      '<div class="bbt">¿Eliminar '+esc(ACTUAL.id)+' por completo?</div>'+
-      '<div class="bbx">Se borrará la mejora del registro'+
-      (f.length?', junto con sus '+detalle.join(' y ')+' y su carpeta en Drive':'')+'. '+
-      'Las mejoras eliminadas dejan de contar en el tablero y en los reportes.<br><br>'+
-      '<b>Se puede recuperar</b> desde el historial de versiones del Google Sheet, y los archivos quedan en la papelera de Drive por 30 días. '+
-      'Aun así, no es algo que convenga hacer por error.</div>'+
-      '<div class="bbb">'+
-        '<button class="btn sec" onclick="$(\'confirmaBorrado\').innerHTML=\'\'">No, cancelar</button>'+
-        '<button class="btn danger" onclick="borrarMejora()" id="btnBorrarSi">Sí, eliminar '+esc(ACTUAL.id)+'</button>'+
-      '</div>'+
+    '<div class="bbt">¿Eliminar '+esc(ACTUAL.id)+' por completo?</div>'+
+    '<div class="bbidea">'+esc(ACTUAL.idea)+'</div>'+
+    '<div class="bbx">Se borrará esta mejora del registro'+
+      (f.length?', junto con sus '+detalle.join(' y ')+' y su carpeta en Drive':'')+
+      '. Dejará de contar en el tablero y en los reportes.</div>'+
+    '<div class="bbnota">Se puede recuperar desde el historial de versiones del Sheet, y los archivos quedan 30 días en la papelera de Drive.</div>'+
+    '<div id="bbError"></div>'+
+    '<div class="bbb">'+
+      '<button class="btn sec" onclick="cerrarBorrado()">No, cancelar</button>'+
+      '<button class="btn danger" onclick="borrarMejora()" id="btnBorrarSi">Sí, eliminar</button>'+
     '</div>';
+  $('mBorrar').classList.add('on');
 }
 
 function borrarMejora(){
   if(!ACTUAL)return;
   var id=ACTUAL.id;
-  var b=$('btnBorrarSi');b.disabled=true;b.textContent='Eliminando…';
+  var b=$('btnBorrarSi');
+  b.disabled=true;b.textContent='Eliminando…';
+  $('bbError').innerHTML='';
   post({accion:'borrarMejora',id:id,usuario:USUARIO}).then(function(r){
-    if(!r.ok){toast('Error: '+r.error,true);b.disabled=false;b.textContent='Sí, eliminar '+id;return;}
+    if(!r||!r.ok){falloBorrado((r&&r.error)||'el servidor no devolvió respuesta',b,id);return;}
     MEJORAS=MEJORAS.filter(function(m){return m.id!==id;});
     EVID=EVID.filter(function(e){return e.idMejora!==id;});
+    cerrarBorrado();
     cerrar();
     pintar(true);
     toast('Mejora '+id+' eliminada'+(r.archivos?' junto con '+r.archivos+' archivo(s)':''));
-  }).catch(function(e){
-    toast('Error al eliminar: '+e,true);
-    b.disabled=false;b.textContent='Sí, eliminar '+id;
-  });
+  }).catch(function(e){falloBorrado(String(e),b,id);});
+}
+
+function falloBorrado(msg,b,id){
+  b.disabled=false;b.textContent='Sí, eliminar';
+  var viejo=(msg.indexOf('desconocida')>=0);
+  $('bbError').innerHTML='<div class="bberr"><b>No se pudo eliminar.</b><br>'+esc(msg)+
+    (viejo?'<br><br>El servidor todavía tiene la versión anterior del programa. '+
+           'Christian debe entrar a Apps Script, ir a <b>Administrar implementaciones</b> y publicar una <b>Nueva versión</b>.'
+          :'')+'</div>';
 }
 
 /* ================================================================
@@ -979,7 +1002,7 @@ function masDias(iso,n){
 /* lunes de la semana que contiene esa fecha */
 function lunesDe(iso){
   var d=new Date(iso+'T12:00:00');
-  var dia=d.getDay();               // 0 domingo … 6 sabado
+  var dia=d.getDay();
   var resta=(dia===0)?6:dia-1;
   d.setDate(d.getDate()-resta);
   return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
@@ -994,14 +1017,9 @@ function prepReporte(){
     sel.innerHTML='<option value="">Todas las áreas</option>'+
       AREAS.map(function(a){return '<option>'+esc(a)+'</option>';}).join('');
   }
-  if(!$('pFecha').value)$('pFecha').value=$('fSemana').value||hoyISO();
+  if(!$('pFecha').value)$('pFecha').value=hoyISO();
   if(!$('pArea').value&&$('fArea').value)$('pArea').value=$('fArea').value;
   pintarReporte();
-}
-
-function masDias(iso,n){
-  var d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);
-  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
 }
 
 function pintarReporte(){
