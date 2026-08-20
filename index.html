@@ -198,6 +198,24 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 .bloque.sobre{outline:2px dashed var(--sage);outline-offset:-3px;background:#E7F5EF;}
 .fnota{display:block;width:100%;font-size:11.5px;color:var(--stone);margin-top:8px;line-height:1.5;}
 .item.recien{border-color:var(--sage)!important;box-shadow:0 0 0 3px rgba(15,122,90,.22);}
+
+/* ---- archivos adjuntos ---- */
+.dlist{display:flex;flex-direction:column;gap:6px;margin-top:2px;}
+.darch{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--warm);border-radius:8px;padding:7px 9px;}
+.dic{flex:0 0 38px;text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.3px;color:#fff;border-radius:5px;padding:5px 0;}
+.dic.pdf{background:#DC2626;}.dic.doc{background:#2B5CE0;}.dic.xls{background:#0F7A5A;}
+.dic.ppt{background:#D2600B;}.dic.zip{background:#5F726C;}.dic.otro{background:#4E6B78;}
+.dnom{flex:1;min-width:0;font-size:12.5px;color:var(--sage-dark);text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dnom:hover{text-decoration:underline;}
+.ddel{background:none;border:none;color:var(--rose);font-size:19px;line-height:1;cursor:pointer;padding:0 4px;flex:0 0 auto;}
+
+/* ---- confirmación de borrado ---- */
+.borrabox{margin-top:16px;background:#FBE9E9;border:1px solid #F0B9B9;border-radius:10px;padding:15px 17px;}
+.bbt{font-size:14.5px;font-weight:700;color:var(--rose);margin-bottom:7px;}
+.bbx{font-size:12.5px;color:#5c3030;line-height:1.6;}
+.bbb{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+.btn.danger{background:var(--rose);border:none;color:#fff;}
+.btn.danger:hover{background:#B91C1C;}
 .load{text-align:center;padding:50px 20px;color:var(--stone);font-size:14px;}
 .err{background:#FBE9E9;border:1px solid var(--rose);border-radius:8px;padding:12px 16px;color:#DC2626;font-size:13px;margin-bottom:16px;}
 .barra{height:6px;background:var(--warm-light);border-radius:99px;overflow:hidden;flex:1;min-width:60px;max-width:110px;}
@@ -299,10 +317,13 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
       <button class="x" onclick="cerrar()">&times;</button>
     </div>
     <div id="mBody"></div>
-    <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
+    <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;align-items:center;">
       <button class="btn" onclick="guardar()" id="btnGuardar">Guardar cambios</button>
       <button class="btn sec" onclick="cerrar()">Cerrar</button>
+      <div style="flex:1"></div>
+      <button class="btn danger sm" id="btnBorrar" onclick="pedirBorrado()" style="display:none">Eliminar mejora</button>
     </div>
+    <div id="confirmaBorrado"></div>
   </div>
 </div>
 
@@ -550,6 +571,8 @@ function abrir(id){
   ACTUAL=JSON.parse(JSON.stringify(m));ACTUAL.nueva=false;
   $('mId').textContent=m.id;$('mArea').textContent=m.area;
   $('mBody').innerHTML=formHTML(ACTUAL)+bloquesHTML(ACTUAL);
+  $('btnBorrar').style.display='';
+  $('confirmaBorrado').innerHTML='';
   $('modal').classList.add('on');document.body.style.overflow='hidden';
 }
 
@@ -562,7 +585,9 @@ function nuevaMejora(){
     '<label>Área</label><select class="full" id="cArea">'+
       AREAS.map(function(a){return '<option'+(a===ACTUAL.area?' selected':'')+'>'+esc(a)+'</option>';}).join('')+
     '</select>'+formHTML(ACTUAL,true)+
-    '<div class="note" style="margin-top:16px">Guarda primero la mejora para que reciba su código. Después podrás subirle fotos del antes y del después.</div>';
+    '<div class="note" style="margin-top:16px">Guarda primero la mejora para que reciba su código. Después podrás subirle fotos y archivos del antes y del después.</div>';
+  $('btnBorrar').style.display='none';
+  $('confirmaBorrado').innerHTML='';
   $('modal').classList.add('on');document.body.style.overflow='hidden';
 }
 
@@ -596,40 +621,82 @@ function setPct(p){
   for(var i=0;i<b.length;i++)b[i].classList.toggle('on',Math.abs(parseFloat(b[i].dataset.p)-p)<0.001);
 }
 
-/* --- bloques ANTES y DESPUÉS: cada uno con su texto y sus fotos --- */
+/* --- bloques ANTES y DESPUÉS: cada uno con su texto, sus fotos y sus archivos --- */
+var ACEPTA='image/*,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.ppt,.pptx,.txt,.zip,.msg,.eml';
+
+function extDe(n){
+  n=String(n||'');
+  return n.indexOf('.')>=0?n.split('.').pop().toLowerCase():'';
+}
+function esImagen(n){
+  return ['jpg','jpeg','png','gif','webp','bmp','heic','heif'].indexOf(extDe(n))>=0;
+}
+function iconoDe(n){
+  var e=extDe(n);
+  if(['pdf'].indexOf(e)>=0)return {t:'PDF',c:'pdf'};
+  if(['doc','docx'].indexOf(e)>=0)return {t:'DOC',c:'doc'};
+  if(['xls','xlsx','xlsm','csv'].indexOf(e)>=0)return {t:'XLS',c:'xls'};
+  if(['ppt','pptx'].indexOf(e)>=0)return {t:'PPT',c:'ppt'};
+  if(['zip','rar','7z'].indexOf(e)>=0)return {t:'ZIP',c:'zip'};
+  return {t:(e||'?').toUpperCase().substring(0,4),c:'otro'};
+}
+function nombreCorto(n){
+  n=String(n||'').replace(/^[A-Z]{3}-\d{3}_(antes|despues)_/i,'');
+  return n.length>30?n.substring(0,27)+'…':n;
+}
+
 function bloquesHTML(m){
   var f=fotosDe(m.id);
   var movil=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   function bloque(tipo,titulo,idTexto,valor,ph){
     var l=f.filter(function(x){return x.tipo===tipo;});
+    var imgs=l.filter(function(x){return esImagen(x.nombre);});
+    var docs=l.filter(function(x){return !esImagen(x.nombre);});
     var t=tipo.toLowerCase();
-    return '<div class="bloque '+t+'" id="bl'+tipo+'"'+
+    var h='<div class="bloque '+t+'" id="bl'+tipo+'"'+
       ' ondragover="dragOn(event,\''+tipo+'\')" ondragleave="dragOff(\''+tipo+'\')"'+
       ' ondrop="soltar(event,\''+m.id+'\',\''+tipo+'\')">'+
-      '<div class="bt"><span>'+titulo+'</span><span class="bn">'+l.length+' foto'+(l.length===1?'':'s')+'</span></div>'+
-      '<textarea id="'+idTexto+'" placeholder="'+ph+'" onpaste="pegar(event,\''+m.id+'\',\''+tipo+'\')">'+esc(valor||'')+'</textarea>'+
-      (l.length?'<div class="fgrid">'+l.map(function(x){
-        var alt='https://drive.google.com/thumbnail?id='+esc(x.fileId||'')+'&sz=w1200';
-        return '<div class="fth"><img src="'+esc(x.url)+'" alt="'+esc(x.nombre)+'" loading="lazy" '+
-               'onerror="this.onerror=null;this.src=\''+alt+'\';" '+
-               'onclick="zoom(\''+esc(x.url)+'\')">'+
-               '<button class="del" onclick="event.stopPropagation();borrarFoto(\''+x.idEv+'\')" title="Eliminar">&times;</button></div>';
-      }).join('')+'</div>':'<div class="fvacio">Todavía no hay fotos.</div>')+
-      '<div class="up">'+
-        (movil
-          ? '<label class="uplbl" for="cam'+tipo+'">📷 Tomar foto ahora</label>'+
-            '<input type="file" id="cam'+tipo+'" accept="image/*" capture="environment" onchange="subir(this,\''+m.id+'\',\''+tipo+'\')">'+
-            '<label class="uplbl sec" for="up'+tipo+'">🖼 Elegir de la galería</label>'+
-            '<input type="file" id="up'+tipo+'" accept="image/*" multiple onchange="subir(this,\''+m.id+'\',\''+tipo+'\')">'
-          : '<label class="uplbl" for="up'+tipo+'">📎 Elegir, arrastrar o pegar aquí</label>'+
-            '<input type="file" id="up'+tipo+'" accept="image/*" multiple onchange="subir(this,\''+m.id+'\',\''+tipo+'\')">')+
+      '<div class="bt"><span>'+titulo+'</span><span class="bn">'+
+        (imgs.length?imgs.length+' foto'+(imgs.length===1?'':'s'):'')+
+        (imgs.length&&docs.length?' · ':'')+
+        (docs.length?docs.length+' archivo'+(docs.length===1?'':'s'):'')+
+        (!imgs.length&&!docs.length?'vacío':'')+
+      '</span></div>'+
+      '<textarea id="'+idTexto+'" placeholder="'+ph+'" onpaste="pegar(event,\''+m.id+'\',\''+tipo+'\')">'+esc(valor||'')+'</textarea>';
+
+    if(imgs.length)h+='<div class="fgrid">'+imgs.map(function(x){
+      var alt='https://drive.google.com/thumbnail?id='+esc(x.fileId||'')+'&sz=w1200';
+      return '<div class="fth"><img src="'+esc(x.url)+'" alt="'+esc(x.nombre)+'" loading="lazy" '+
+             'onerror="this.onerror=null;this.src=\''+alt+'\';" onclick="zoom(\''+esc(x.url)+'\')">'+
+             '<button class="del" onclick="event.stopPropagation();borrarFoto(\''+x.idEv+'\')" title="Eliminar">&times;</button></div>';
+    }).join('')+'</div>';
+
+    if(docs.length)h+='<div class="dlist">'+docs.map(function(x){
+      var ic=iconoDe(x.nombre);
+      return '<div class="darch"><span class="dic '+ic.c+'">'+ic.t+'</span>'+
+        '<a class="dnom" href="'+esc(x.url)+'" target="_blank" rel="noopener" title="'+esc(x.nombre)+'">'+
+        esc(nombreCorto(x.nombre))+'</a>'+
+        '<button class="ddel" onclick="borrarFoto(\''+x.idEv+'\')" title="Eliminar">&times;</button></div>';
+    }).join('')+'</div>';
+
+    if(!imgs.length&&!docs.length)h+='<div class="fvacio">Todavía no hay nada cargado.</div>';
+
+    h+='<div class="up">'+
+      (movil
+        ? '<label class="uplbl" for="cam'+tipo+'">📷 Tomar foto ahora</label>'+
+          '<input type="file" id="cam'+tipo+'" accept="image/*" capture="environment" onchange="subir(this,\''+m.id+'\',\''+tipo+'\')">'+
+          '<label class="uplbl sec" for="up'+tipo+'">📎 Elegir foto o archivo</label>'+
+          '<input type="file" id="up'+tipo+'" accept="'+ACEPTA+'" multiple onchange="subir(this,\''+m.id+'\',\''+tipo+'\')">'
+        : '<label class="uplbl" for="up'+tipo+'">📎 Elegir, arrastrar o pegar aquí</label>'+
+          '<input type="file" id="up'+tipo+'" accept="'+ACEPTA+'" multiple onchange="subir(this,\''+m.id+'\',\''+tipo+'\')">')+
       '</div></div>';
+    return h;
   }
   return '<div class="sectitle">Antes y después</div>'+
     '<div style="font-size:12px;color:var(--stone);margin-bottom:10px;">'+
-    (movil?'Puedes tomar la foto con la cámara o elegir varias de la galería.'
-          :'Arrastra las imágenes hasta el recuadro, pégalas con Ctrl+V, o elige el archivo. Se pueden subir varias a la vez.')+
-    ' No hay límite de fotos.</div>'+
+    (movil?'Toma la foto con la cámara, o elige fotos y archivos del teléfono.'
+          :'Arrastra fotos o archivos hasta el recuadro, pégalos con Ctrl+V, o búscalos con el botón.')+
+    ' Se aceptan imágenes, PDF, Word, Excel y PowerPoint. Cada archivo hasta 20 MB.</div>'+
     '<div class="bloques">'+
       bloque('ANTES','Antes','cAntes',m.situacionAntes,'¿Cuál era el problema? ¿Cómo estaba antes de la mejora?')+
       bloque('DESPUES','Después','cResultado',m.resultado,'¿Cómo quedó? ¿Qué se logró con la mejora?')+
@@ -641,11 +708,9 @@ function dragOn(ev,tipo){ev.preventDefault();var el=$('bl'+tipo);if(el)el.classL
 function dragOff(tipo){var el=$('bl'+tipo);if(el)el.classList.remove('sobre');}
 function soltar(ev,idMejora,tipo){
   ev.preventDefault();dragOff(tipo);
-  var fs=[];
-  var dt=ev.dataTransfer;
-  if(dt&&dt.files)for(var i=0;i<dt.files.length;i++)
-    if(dt.files[i].type.indexOf('image/')===0)fs.push(dt.files[i]);
-  if(!fs.length){toast('Eso no es una imagen',true);return;}
+  var fs=[], dt=ev.dataTransfer;
+  if(dt&&dt.files)for(var i=0;i<dt.files.length;i++)fs.push(dt.files[i]);
+  if(!fs.length){toast('No se reconoció ningún archivo',true);return;}
   subirLista(fs,idMejora,tipo);
 }
 function pegar(ev,idMejora,tipo){
@@ -653,7 +718,7 @@ function pegar(ev,idMejora,tipo){
   if(!it||!it.items)return;
   var fs=[];
   for(var i=0;i<it.items.length;i++){
-    if(it.items[i].type.indexOf('image/')===0){
+    if(it.items[i].kind==='file'){
       var f=it.items[i].getAsFile();
       if(f)fs.push(f);
     }
@@ -665,7 +730,9 @@ function pegar(ev,idMejora,tipo){
 
 function zoom(u){$('lbImg').src=u;$('lb').classList.add('on');}
 
-/* ---------- COMPRESIÓN + SUBIDA ---------- */
+/* ---------- LECTURA Y SUBIDA ---------- */
+var MAX_MB=20;
+
 function comprimir(file){
   return new Promise(function(res,rej){
     var fr=new FileReader();
@@ -676,14 +743,33 @@ function comprimir(file){
         if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
         var c=document.createElement('canvas');c.width=w;c.height=h;
         c.getContext('2d').drawImage(img,0,0,w,h);
-        res(c.toDataURL('image/jpeg',0.8).split(',')[1]);
+        res({b64:c.toDataURL('image/jpeg',0.8).split(',')[1],mime:'image/jpeg',ext:'jpg'});
       };
-      img.onerror=function(){rej('No se pudo leer la imagen');};
+      img.onerror=function(){rej('no se pudo leer la imagen');};
       img.src=fr.result;
     };
-    fr.onerror=function(){rej('No se pudo leer el archivo');};
+    fr.onerror=function(){rej('no se pudo leer el archivo');};
     fr.readAsDataURL(file);
   });
+}
+
+function leerTalCual(file){
+  return new Promise(function(res,rej){
+    var fr=new FileReader();
+    fr.onload=function(){
+      var s=String(fr.result);
+      var i=s.indexOf(',');
+      res({b64:s.substring(i+1),mime:file.type||'application/octet-stream',ext:extDe(file.name)});
+    };
+    fr.onerror=function(){rej('no se pudo leer el archivo');};
+    fr.readAsDataURL(file);
+  });
+}
+
+function prepararArchivo(file){
+  var tipoImg=(file.type&&file.type.indexOf('image/')===0)||esImagen(file.name);
+  /* las imágenes se reducen; los documentos van tal cual */
+  return tipoImg?comprimir(file):leerTalCual(file);
 }
 
 function subir(input,idMejora,tipo){
@@ -699,12 +785,10 @@ function subirLista(files,idMejora,tipo){
   function siguiente(){
     if(i>=files.length){
       if(ok){
-        toast(ok+' de '+files.length+' foto(s) guardada(s)'+
+        toast(ok+' de '+files.length+' archivo(s) guardado(s)'+
               (sinCompartir?' · '+sinCompartir+' sin permiso de vista':''));
       }
-      if(errores.length){
-        mostrarErrorFoto(errores);
-      }
+      if(errores.length)mostrarErrorFoto(errores);
       if(ok){
         jsonp({accion:'evidencias'},function(r){
           if(!r.ok)return;
@@ -716,16 +800,21 @@ function subirLista(files,idMejora,tipo){
       return;
     }
     var f=files[i++];
-    toast('Subiendo '+i+' de '+files.length+'…');
-    comprimir(f).then(function(b64){
-      return post({accion:'evidencia',idMejora:idMejora,tipo:tipo,base64:b64,
-                   nombre:f.name||('foto_'+i+'.jpg'),mime:'image/jpeg',usuario:USUARIO});
+    var nom=f.name||('archivo_'+i);
+    if(f.size>MAX_MB*1024*1024){
+      errores.push(nom+': pesa '+(f.size/1048576).toFixed(1)+' MB y el máximo es '+MAX_MB+' MB');
+      siguiente();return;
+    }
+    toast('Subiendo '+i+' de '+files.length+': '+nombreCorto(nom)+'…');
+    prepararArchivo(f).then(function(a){
+      return post({accion:'evidencia',idMejora:idMejora,tipo:tipo,base64:a.b64,
+                   nombre:nom,mime:a.mime,usuario:USUARIO});
     }).then(function(r){
       if(r&&r.ok){ok++;if(r.compartido===false)sinCompartir++;}
-      else errores.push((f.name||'foto '+i)+': '+((r&&r.error)||'el servidor no confirmó el guardado'));
+      else errores.push(nom+': '+((r&&r.error)||'el servidor no confirmó el guardado'));
       siguiente();
     }).catch(function(e){
-      errores.push((f.name||'foto '+i)+': '+e);
+      errores.push(nom+': '+e);
       siguiente();
     });
   }
@@ -734,11 +823,11 @@ function subirLista(files,idMejora,tipo){
 
 function mostrarErrorFoto(errores){
   $('errBox').style.display='block';
-  $('errBox').innerHTML='<b>No se pudieron guardar '+errores.length+' foto(s).</b>'+
+  $('errBox').innerHTML='<b>No se pudieron guardar '+errores.length+' archivo(s).</b>'+
     '<div style="margin-top:8px;font-weight:400;line-height:1.6;font-size:12.5px">'+
     errores.slice(0,3).map(function(e){return '· '+esc(e);}).join('<br>')+
     (errores.length>3?'<br>· y '+(errores.length-3)+' más':'')+
-    '<br><br>Si el mensaje habla de permisos o de la carpeta, el problema está en Drive, no en la foto. '+
+    '<br><br>Si el mensaje habla de permisos o de la carpeta, el problema está en Drive, no en el archivo. '+
     'Avísale a Christian para que ejecute <b>probarSubidaDeFoto</b> en Apps Script.</div>'+
     '<div style="margin-top:10px"><button class="btn sec sm" onclick="$(\'errBox\').style.display=\'none\'">Entendido</button></div>';
   window.scrollTo(0,0);
@@ -818,7 +907,51 @@ function resaltar(id){
   },60);
 }
 
-function cerrar(){$('modal').classList.remove('on');document.body.style.overflow='';ACTUAL=null;}
+function cerrar(){
+  $('modal').classList.remove('on');document.body.style.overflow='';
+  $('confirmaBorrado').innerHTML='';ACTUAL=null;
+}
+
+/* ---------- ELIMINAR LA MEJORA COMPLETA ---------- */
+function pedirBorrado(){
+  if(!ACTUAL||ACTUAL.nueva)return;
+  var f=fotosDe(ACTUAL.id);
+  var imgs=f.filter(function(x){return esImagen(x.nombre);}).length;
+  var docs=f.length-imgs;
+  var detalle=[];
+  if(imgs)detalle.push(imgs+' foto'+(imgs===1?'':'s'));
+  if(docs)detalle.push(docs+' archivo'+(docs===1?'':'s'));
+  $('confirmaBorrado').innerHTML=
+    '<div class="borrabox">'+
+      '<div class="bbt">¿Eliminar '+esc(ACTUAL.id)+' por completo?</div>'+
+      '<div class="bbx">Se borrará la mejora del registro'+
+      (f.length?', junto con sus '+detalle.join(' y ')+' y su carpeta en Drive':'')+'. '+
+      'Las mejoras eliminadas dejan de contar en el tablero y en los reportes.<br><br>'+
+      '<b>Se puede recuperar</b> desde el historial de versiones del Google Sheet, y los archivos quedan en la papelera de Drive por 30 días. '+
+      'Aun así, no es algo que convenga hacer por error.</div>'+
+      '<div class="bbb">'+
+        '<button class="btn sec" onclick="$(\'confirmaBorrado\').innerHTML=\'\'">No, cancelar</button>'+
+        '<button class="btn danger" onclick="borrarMejora()" id="btnBorrarSi">Sí, eliminar '+esc(ACTUAL.id)+'</button>'+
+      '</div>'+
+    '</div>';
+}
+
+function borrarMejora(){
+  if(!ACTUAL)return;
+  var id=ACTUAL.id;
+  var b=$('btnBorrarSi');b.disabled=true;b.textContent='Eliminando…';
+  post({accion:'borrarMejora',id:id,usuario:USUARIO}).then(function(r){
+    if(!r.ok){toast('Error: '+r.error,true);b.disabled=false;b.textContent='Sí, eliminar '+id;return;}
+    MEJORAS=MEJORAS.filter(function(m){return m.id!==id;});
+    EVID=EVID.filter(function(e){return e.idMejora!==id;});
+    cerrar();
+    pintar(true);
+    toast('Mejora '+id+' eliminada'+(r.archivos?' junto con '+r.archivos+' archivo(s)':''));
+  }).catch(function(e){
+    toast('Error al eliminar: '+e,true);
+    b.disabled=false;b.textContent='Sí, eliminar '+id;
+  });
+}
 
 /* ================================================================
    UTILIDADES DE FECHA
