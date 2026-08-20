@@ -270,7 +270,7 @@ function pintarTab(){
         '<div class="dual">'+
         '<div class="dcell"><div class="dv">'+d.reprog+'</div><div class="dl">mejoras reprogramadas</div></div>'+
         '<div class="dcell"><div class="dv">'+(d.n?n1(d.reprog/d.n*100):0)+'%</div><div class="dl">del total de ideas</div></div>'+
-        '</div>'+(d.reprog===0?'<div class="nota-inline">Todavía no hay reprogramaciones registradas. Este número empieza a contar desde que se usa el modo reunión: las del archivo antiguo no quedaron guardadas.</div>':''));
+        '</div>'+(d.reprog===0?'<div class="nota-inline">Todavía no hay reprogramaciones registradas. Este número empieza a contar desde ahora: las reprogramaciones del archivo antiguo no quedaron guardadas.</div>':''));
 
     if(v.length) mk('cAtraso',{type:'bar',
       data:{labels:top.map(function(m){return m.id+' · '+corto(m.idea,32);}),
