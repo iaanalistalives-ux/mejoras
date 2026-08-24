@@ -222,6 +222,23 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 .bbb .btn{flex:1;min-width:130px;}
 .btn.danger{background:var(--rose);border:none;color:#fff;}
 .btn.danger:hover{background:#B91C1C;}
+
+.fperiodo{display:flex;gap:11px;align-items:flex-end;flex-wrap:wrap;margin-top:13px;padding-top:13px;border-top:1px solid var(--warm-light);}
+.fgrupo{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--stone);align-self:center;padding-bottom:9px;}
+.fperiodo .fcampo select{min-width:120px;}
+.fperiodo .fcampo.ancho select{min-width:190px;}
+.fchips.catrow{border-top:1px solid var(--warm-light);align-items:center;}
+.fchip.cat{background:#fff;border:1px solid var(--warm);min-width:52px;justify-content:center;}
+.fchip.cat.on{background:var(--slate);color:#fff;border-color:var(--slate);}
+.catmini{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:5px;font-size:10.5px;font-weight:800;color:#fff;background:#C9D6D2;flex:0 0 19px;}
+.catmini.ca{background:#0F7A5A;}.catmini.cb{background:#4E6B78;}.catmini.cc{background:#B45309;}
+.catmini.csd{background:#C9D6D2;color:#5F726C;}
+.catsel{display:flex;gap:7px;flex-wrap:wrap;}
+.catb{background:#fff;border:1.5px solid var(--warm);border-radius:8px;padding:9px 16px;font-family:inherit;font-size:13.5px;font-weight:700;color:var(--stone);cursor:pointer;}
+.catb.on{border-color:var(--sage);background:#E7F5EF;color:var(--sage);}
+
+.fchip.imp{background:#fff;border:1px dashed var(--warm);min-width:52px;justify-content:center;}
+.fchip.imp.on{background:#B45309;color:#fff;border-color:#B45309;border-style:solid;}
 .load{text-align:center;padding:50px 20px;color:var(--stone);font-size:14px;}
 .err{background:#FBE9E9;border:1px solid var(--rose);border-radius:8px;padding:12px 16px;color:#DC2626;font-size:13px;margin-bottom:16px;}
 .barra{height:6px;background:var(--warm-light);border-radius:99px;overflow:hidden;flex:1;min-width:60px;max-width:110px;}
@@ -270,13 +287,20 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
           <label class="flab">Buscar</label>
           <input type="search" id="fTexto" placeholder="Código, idea, responsable o comentario…" oninput="pintar()">
         </div>
-        <div class="fcampo">
-          <label class="flab">Semana</label>
-          <select id="fSemana" onchange="pintar()"></select>
-        </div>
         <button class="btn nueva" onclick="nuevaMejora()">+ Nueva mejora</button>
       </div>
+
+      <div class="fperiodo">
+        <span class="fgrupo">Fecha comprometida</span>
+        <div class="fcampo"><label class="flab">Año</label><select id="fAnio" onchange="cambioPeriodo()"></select></div>
+        <div class="fcampo"><label class="flab">Mes</label><select id="fMes" onchange="cambioPeriodo()"></select></div>
+        <div class="fcampo ancho"><label class="flab">Semana</label><select id="fSemana" onchange="pintar()"></select></div>
+        <button class="linkbtn" onclick="limpiarPeriodo()">Quitar</button>
+      </div>
+
       <div class="fchips" id="fChips"></div>
+      <div class="fchips catrow"><span class="fgrupo">Categoría</span><span id="fCats"></span></div>
+      <div class="fchips catrow"><span class="fgrupo">Nivel de impacto</span><span id="fImps"></span></div>
     </div>
 
     <div class="minikpi" id="miniKpi"></div>
@@ -404,9 +428,9 @@ function cargar(){
     MEJORAS=r.mejoras||[];
     var set={};MEJORAS.forEach(function(m){if(m.area)set[m.area]=1;});
     AREAS=Object.keys(set).sort();
-    llenarSemanas();
     var sel=$('fArea');sel.innerHTML='<option value="">Todas las áreas</option>';
     AREAS.forEach(function(a){var o=document.createElement('option');o.value=a;o.textContent=a;sel.appendChild(o);});
+    llenarPeriodo();
     $('errBox').style.display='none';
     pintar();
     /* las fotos se piden después: así la lista aparece rápido en el celular */
@@ -437,6 +461,10 @@ function fotosDe(id){return EVID.filter(function(e){return e.idMejora===id;});}
 
 /* ---------- FILTROS RÁPIDOS ---------- */
 var QF='todas';
+var CATS=[];                       /* categorías activas: [] = todas */
+var IMPS=[];                       /* niveles de impacto activos: [] = todos */
+var MESES=['enero','febrero','marzo','abril','mayo','junio','julio',
+           'agosto','septiembre','octubre','noviembre','diciembre'];
 var CHIPS=[
   {id:'todas', t:'Todas'},
   {id:'pend',  t:'Pendientes'},
@@ -444,25 +472,106 @@ var CHIPS=[
   {id:'sem',   t:'Por revisar esta semana'}
 ];
 
+/* --- categoría: viene de la columna EVALUACION --- */
+function catDe(m){
+  var e=String(m.evaluacion||'').trim().toUpperCase();
+  if(e==='A'||e==='B'||e==='C')return e;
+  return 'SD';                     /* sin definir o vacía */
+}
+function toggleCat(c){
+  var i=CATS.indexOf(c);
+  if(i>=0)CATS.splice(i,1);else CATS.push(c);
+  pintar();
+}
+
+/* --- nivel de impacto: columna IMPACTO, escala A / B / C --- */
+function impDe(m){
+  var e=String(m.impacto||'').trim().toUpperCase();
+  if(e==='A'||e==='B'||e==='C')return e;
+  return 'SD';
+}
+function toggleImp(c){
+  var i=IMPS.indexOf(c);
+  if(i>=0)IMPS.splice(i,1);else IMPS.push(c);
+  pintar();
+}
+
+/* --- selectores de periodo --- */
+function llenarPeriodo(){
+  var a=$('fAnio');
+  if(!a.options.length){
+    var set={};
+    MEJORAS.forEach(function(m){
+      var fc=(m.fechaCierre||'').substring(0,4);
+      if(fc&&fc>'1990')set[fc]=1;
+    });
+    var años=Object.keys(set).sort();
+    a.innerHTML='<option value="">Todos los años</option>'+
+      años.map(function(x){return '<option>'+x+'</option>';}).join('')+
+      '<option value="SIN">Sin fecha asignada</option>';
+    $('fMes').innerHTML='<option value="">Todos los meses</option>'+
+      MESES.map(function(n,i){return '<option value="'+('0'+(i+1)).slice(-2)+'">'+
+        n.charAt(0).toUpperCase()+n.slice(1)+'</option>';}).join('');
+  }
+  llenarSemanas();
+}
+
 function llenarSemanas(){
-  var sel=$('fSemana');
-  if(sel.options.length)return;
-  var base=lunesDe(hoyISO()), h='';
-  for(var i=-8;i<=8;i++){
-    var l=masDias(base,i*7), d=masDias(l,6);
-    h+='<option value="'+l+'"'+(i===0?' selected':'')+'>'+
-       (i===0?'Esta semana · ':i===1?'Próxima · ':i===-1?'Anterior · ':'')+
-       fechaCorta(l)+' al '+fechaCorta(d)+'</option>';
+  var sel=$('fSemana'), anio=$('fAnio').value, mes=$('fMes').value;
+  var h='<option value="">Todas las semanas</option>';
+  var ini,fin;
+  if(anio&&anio!=='SIN'&&mes){
+    ini=lunesDe(anio+'-'+mes+'-01');
+    var ult=new Date(parseInt(anio,10),parseInt(mes,10),0).getDate();
+    fin=anio+'-'+mes+'-'+('0'+ult).slice(-2);
+  }else{
+    ini=masDias(lunesDe(hoyISO()),-8*7);
+    fin=masDias(lunesDe(hoyISO()),8*7);
+  }
+  var hoyL=lunesDe(hoyISO());
+  for(var l=ini;l<=fin;l=masDias(l,7)){
+    h+='<option value="'+l+'">'+(l===hoyL?'Esta semana · ':'')+
+       fechaCorta(l)+' al '+fechaCorta(masDias(l,6))+'</option>';
   }
   sel.innerHTML=h;
 }
-function semanaSel(){
-  var l=$('fSemana').value||lunesDe(hoyISO());
+
+function cambioPeriodo(){llenarSemanas();pintar();}
+function limpiarPeriodo(){
+  $('fAnio').value='';$('fMes').value='';
+  llenarSemanas();$('fSemana').value='';
+  pintar();
+}
+
+function semanaActiva(){
+  var v=$('fSemana').value;
+  var l=v||lunesDe(hoyISO());
   return {ini:l,fin:masDias(l,6)};
 }
+
+/* --- filtros --- */
 function porArea_(m){
   var a=$('fArea').value;
   return !a||m.area===a;
+}
+function pasaPeriodo(m){
+  var anio=$('fAnio').value, mes=$('fMes').value, sem=$('fSemana').value;
+  var fc=(m.fechaCierre||'').substring(0,10);
+  if(anio==='SIN')return !fc;
+  if(anio&&fc.substring(0,4)!==anio)return false;
+  if(mes&&fc.substring(5,7)!==mes)return false;
+  if(sem){
+    if(!fc)return false;
+    if(fc<sem||fc>masDias(sem,6))return false;
+  }
+  if((anio||mes)&&!fc)return false;
+  return true;
+}
+function pasaCat(m){
+  return !CATS.length||CATS.indexOf(catDe(m))>=0;
+}
+function pasaImp(m){
+  return !IMPS.length||IMPS.indexOf(impDe(m))>=0;
 }
 function pasaQF(m,f){
   var fc=(m.fechaCierre||'').substring(0,10);
@@ -471,31 +580,64 @@ function pasaQF(m,f){
     case 'pend':  return m.pct<1;
     case 'cerr':  return m.pct>=1;
     case 'sem':
-      var s=semanaSel();
-      return m.pct<1 && ( (!!fc && fc>=s.ini && fc<=s.fin) || (!!fc && fc<s.ini) );
+      var s=semanaActiva();
+      return m.pct<1 && !!fc && fc<=s.fin;
   }
   return true;
 }
 function cuentaQF(id){
-  return MEJORAS.filter(porArea_).filter(function(m){return pasaQF(m,id);}).length;
+  return MEJORAS.filter(porArea_).filter(pasaPeriodo).filter(pasaCat).filter(pasaImp)
+                .filter(function(m){return pasaQF(m,id);}).length;
+}
+function cuentaCat(c){
+  return MEJORAS.filter(porArea_).filter(pasaPeriodo).filter(pasaImp)
+                .filter(function(m){return catDe(m)===c;})
+                .filter(function(m){return pasaQF(m,QF);}).length;
+}
+function cuentaImp(c){
+  return MEJORAS.filter(porArea_).filter(pasaPeriodo).filter(pasaCat)
+                .filter(function(m){return impDe(m)===c;})
+                .filter(function(m){return pasaQF(m,QF);}).length;
 }
 function setQF(f){QF=f;pintar();}
 
 function pintarChips(){
-  var s=semanaSel();
+  var s=semanaActiva();
   $('fChips').innerHTML=CHIPS.map(function(c){
     var n=cuentaQF(c.id);
     return '<button class="fchip'+(QF===c.id?' on':'')+(n===0?' cero':'')+'" onclick="setQF(\''+c.id+'\')">'+
            c.t+'<span class="fn">'+n+'</span></button>';
   }).join('')+
-  (QF==='sem'?'<span class="fnota">Incluye lo comprometido del '+fechaCorta(s.ini)+' al '+
-    fechaCorta(s.fin)+' más todo lo que quedó vencido de semanas anteriores.</span>':'');
+  (QF==='sem'?'<span class="fnota">Pendientes con fecha hasta el '+fechaCorta(s.fin)+
+    ', incluyendo lo que quedó vencido de semanas anteriores.</span>':'');
+
+  var defs=[{c:'A',t:'A'},{c:'B',t:'B'},{c:'C',t:'C'},{c:'SD',t:'Sin definir'}];
+  $('fCats').innerHTML=defs.map(function(d){
+    var n=cuentaCat(d.c);
+    return '<button class="fchip cat'+(CATS.indexOf(d.c)>=0?' on':'')+(n===0?' cero':'')+
+           '" onclick="toggleCat(\''+d.c+'\')">'+d.t+'<span class="fn">'+n+'</span></button>';
+  }).join('')+
+  (CATS.length?'<button class="linkbtn" style="margin-left:8px" onclick="CATS=[];pintar()">Quitar</button>':'');
+
+  var nivs=[{c:'A',t:'A'},{c:'B',t:'B'},{c:'C',t:'C'},{c:'SD',t:'Sin definir'}];
+  var todosSD=nivs.slice(0,3).every(function(d){return cuentaImp(d.c)===0;});
+  $('fImps').innerHTML=nivs.map(function(d){
+    var n=cuentaImp(d.c);
+    return '<button class="fchip imp'+(IMPS.indexOf(d.c)>=0?' on':'')+(n===0?' cero':'')+
+           '" onclick="toggleImp(\''+d.c+'\')">'+d.t+'<span class="fn">'+n+'</span></button>';
+  }).join('')+
+  (IMPS.length?'<button class="linkbtn" style="margin-left:8px" onclick="IMPS=[];pintar()">Quitar</button>':'')+
+  (todosSD?'<span class="fnota">El nivel de impacto todavía no se ha asignado a ninguna mejora. '+
+           'Los botones ya funcionan: mostrarán cifras cuando ese dato empiece a llenarse.</span>':'');
 }
 
 function filtradas(){
   var tx=$('fTexto').value.toLowerCase().trim();
   return MEJORAS.filter(function(m){
     if(!porArea_(m))return false;
+    if(!pasaPeriodo(m))return false;
+    if(!pasaCat(m))return false;
+    if(!pasaImp(m))return false;
     if(!pasaQF(m,QF))return false;
     if(tx){var h=(m.idea+' '+m.responsable+' '+m.comentarios+' '+m.id+' '+m.resultado+' '+(m.situacionAntes||'')).toLowerCase();
       if(h.indexOf(tx)<0)return false;}
@@ -542,6 +684,7 @@ function pintar(mantener){
           '<u style="left:30%"></u><u style="left:50%"></u><u style="left:70%"></u></div>'+
           '<span class="ipn">'+Math.round(m.pct*100)+'%</span></div>'+
         '<div class="imeta">'+
+          '<span class="catmini c'+catDe(m).toLowerCase()+'">'+(catDe(m)==='SD'?'?':catDe(m))+'</span>'+
           '<span class="pill '+pillPct(m.pct)+'">'+esc(estadoDe(m.pct))+'</span>'+
           (venc?'<span class="pill mal">venció '+esc(fc)+'</span>':
             (fc?'<span class="pill">cierre '+esc(fc)+'</span>':'<span class="pill">sin fecha</span>'))+
@@ -611,6 +754,11 @@ function formHTML(m,esNueva){
      '<div><label>Responsable</label><input type="text" id="cResp" value="'+esc(m.responsable)+'"></div>'+
      '<div><label>Fecha comprometida de cierre</label><input type="date" id="cFecha" value="'+esc((m.fechaCierre||'').substring(0,10))+'"></div>'+
      '</div>';
+  var ce=catDe(m);
+  h+='<label>Categoría</label><div class="catsel">'+
+     ['A','B','C','SD'].map(function(x){
+       return '<button type="button" class="catb'+(ce===x?' on':'')+'" data-c="'+x+'" onclick="setCat(\''+x+'\')">'+
+              (x==='SD'?'Sin definir':x)+'</button>';}).join('')+'</div>';
   h+='<label>Comentarios generales</label><textarea id="cComent" placeholder="Notas sueltas, acuerdos, quién quedó a cargo…">'+esc(m.comentarios)+'</textarea>';
   if(!esNueva&&m.revisar==='SI'){
     h+='<div class="note" style="border-left-color:var(--tan);margin-top:14px;">'+
@@ -625,6 +773,11 @@ function formHTML(m,esNueva){
   return h;
 }
 
+function setCat(c){
+  ACTUAL.evaluacion=(c==='SD')?'':c;
+  var b=document.querySelectorAll('.catb');
+  for(var i=0;i<b.length;i++)b[i].classList.toggle('on',b[i].getAttribute('data-c')===c);
+}
 function setPct(p){
   ACTUAL.pct=p;
   var b=document.querySelectorAll('.esc');
@@ -863,7 +1016,8 @@ function guardar(){
          fechaCierre:$('cFecha').value,
          resultado:tr?tr.value.trim():'',
          situacionAntes:ta?ta.value.trim():'',
-         comentarios:$('cComent').value.trim(),usuario:USUARIO};
+         comentarios:$('cComent').value.trim(),
+         evaluacion:(ACTUAL.evaluacion||''),usuario:USUARIO};
   var cr=$('cRevisado'), quitarRev=(cr&&cr.checked);
   $('btnGuardar').disabled=true;$('btnGuardar').textContent='Guardando…';
   var p, eraNueva=ACTUAL.nueva;
@@ -875,7 +1029,7 @@ function guardar(){
     var id=eraNueva?r.id:ACTUAL.id;
     /* actualizo en memoria: así los filtros y la posición no se mueven */
     if(eraNueva){
-      MEJORAS.push({id:r.id,area:d.area,idea:d.idea,evaluacion:'',responsable:d.responsable,
+      MEJORAS.push({id:r.id,area:d.area,idea:d.idea,evaluacion:d.evaluacion,responsable:d.responsable,
         fechaCierre:d.fechaCierre,pct:d.pct,estado:estadoDe(d.pct),impacto:'',
         resultado:d.resultado,comentarios:d.comentarios,situacionAntes:d.situacionAntes,
         statusOrig:'NUEVA',revisar:'',fechaReg:hoyISO(),fechaAct:hoyISO(),
@@ -887,7 +1041,8 @@ function guardar(){
         var m=MEJORAS[i];
         m.idea=d.idea;m.pct=d.pct;m.estado=estadoDe(d.pct);m.responsable=d.responsable;
         m.fechaCierre=d.fechaCierre;m.resultado=d.resultado;m.situacionAntes=d.situacionAntes;
-        m.comentarios=d.comentarios;m.fechaAct=hoyISO();m.actualizadoPor=USUARIO;
+        m.comentarios=d.comentarios;m.evaluacion=d.evaluacion;
+        m.fechaAct=hoyISO();m.actualizadoPor=USUARIO;
         if(quitarRev)m.revisar='';
         break;
       }
