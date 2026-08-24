@@ -239,6 +239,23 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 
 .fchip.imp{background:#fff;border:1px dashed var(--warm);min-width:52px;justify-content:center;}
 .fchip.imp.on{background:#B45309;color:#fff;border-color:#B45309;border-style:solid;}
+
+/* ---- controles rápidos en la tarjeta ---- */
+.iquick{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid var(--warm-light);cursor:default;}
+.qlab{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--stone);}
+.qgrp{display:inline-flex;gap:4px;}
+.qb{background:#fff;border:1px solid var(--warm);border-radius:7px;min-width:28px;padding:5px 8px;font-family:inherit;font-size:12px;font-weight:700;color:var(--stone);cursor:pointer;line-height:1.2;}
+.qb:hover{border-color:var(--sage);}
+.qb.on{background:var(--sage);border-color:var(--sage);color:#fff;}
+.qb.ancho{min-width:52px;}
+.qsep{width:1px;height:18px;background:var(--warm);margin:0 3px;}
+.qcampo{display:inline-flex;align-items:center;gap:5px;background:var(--warm-light);border-radius:7px;padding:3px 8px;}
+.qcampo input{border:1px solid var(--warm);border-radius:6px;padding:4px 7px;font-family:inherit;font-size:12.5px;width:96px;background:#fff;}
+.qcampo input.qhora{width:62px;text-align:center;font-variant-numeric:tabular-nums;}
+.qpre{font-size:11.5px;font-weight:700;color:var(--sage);}
+.qsuf{font-size:10px;color:var(--stone);white-space:nowrap;}
+.item.guardando{opacity:.6;pointer-events:none;}
+@media(max-width:520px){.qsep{display:none;}.iquick{gap:6px;}.qcampo input{width:84px;}}
 .load{text-align:center;padding:50px 20px;color:var(--stone);font-size:14px;}
 .err{background:#FBE9E9;border:1px solid var(--rose);border-radius:8px;padding:12px 16px;color:#DC2626;font-size:13px;margin-bottom:16px;}
 .barra{height:6px;background:var(--warm-light);border-radius:99px;overflow:hidden;flex:1;min-width:60px;max-width:110px;}
@@ -300,7 +317,7 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 
       <div class="fchips" id="fChips"></div>
       <div class="fchips catrow"><span class="fgrupo">Categoría</span><span id="fCats"></span></div>
-      <div class="fchips catrow"><span class="fgrupo">Nivel de impacto</span><span id="fImps"></span></div>
+      <div class="fchips catrow"><span class="fgrupo">Tipo de ahorro</span><span id="fImps"></span></div>
     </div>
 
     <div class="minikpi" id="miniKpi"></div>
@@ -484,11 +501,25 @@ function toggleCat(c){
   pintar();
 }
 
-/* --- nivel de impacto: columna IMPACTO, escala A / B / C --- */
+/* --- tipo de ahorro: columna IMPACTO --- */
 function impDe(m){
   var e=String(m.impacto||'').trim().toUpperCase();
-  if(e==='A'||e==='B'||e==='C')return e;
+  if(e.indexOf('COST')===0)return 'COSTO';
+  if(e.indexOf('TIEMP')===0)return 'TIEMPO';
   return 'SD';
+}
+function minutosDe(t){
+  var p=String(t||'').split(':');
+  if(p.length!==2)return 0;
+  var hh=parseInt(p[0],10)||0, mm=parseInt(p[1],10)||0;
+  return hh*60+mm;
+}
+function hhmm(min){
+  min=Math.max(0,Math.round(min));
+  return Math.floor(min/60)+':'+('0'+(min%60)).slice(-2);
+}
+function money(n){
+  return 'S/ '+(Number(n)||0).toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function toggleImp(c){
   var i=IMPS.indexOf(c);
@@ -619,16 +650,16 @@ function pintarChips(){
   }).join('')+
   (CATS.length?'<button class="linkbtn" style="margin-left:8px" onclick="CATS=[];pintar()">Quitar</button>':'');
 
-  var nivs=[{c:'A',t:'A'},{c:'B',t:'B'},{c:'C',t:'C'},{c:'SD',t:'Sin definir'}];
-  var todosSD=nivs.slice(0,3).every(function(d){return cuentaImp(d.c)===0;});
+  var nivs=[{c:'COSTO',t:'Costo'},{c:'TIEMPO',t:'Tiempo'},{c:'SD',t:'Sin definir'}];
+  var todosSD=nivs.slice(0,2).every(function(d){return cuentaImp(d.c)===0;});
   $('fImps').innerHTML=nivs.map(function(d){
     var n=cuentaImp(d.c);
     return '<button class="fchip imp'+(IMPS.indexOf(d.c)>=0?' on':'')+(n===0?' cero':'')+
            '" onclick="toggleImp(\''+d.c+'\')">'+d.t+'<span class="fn">'+n+'</span></button>';
   }).join('')+
   (IMPS.length?'<button class="linkbtn" style="margin-left:8px" onclick="IMPS=[];pintar()">Quitar</button>':'')+
-  (todosSD?'<span class="fnota">El nivel de impacto todavía no se ha asignado a ninguna mejora. '+
-           'Los botones ya funcionan: mostrarán cifras cuando ese dato empiece a llenarse.</span>':'');
+  (todosSD?'<span class="fnota">Todavía ninguna mejora indica si el ahorro es de costo o de tiempo. '+
+           'Se marca en cada tarjeta de la lista, sin necesidad de abrirla.</span>':'');
 }
 
 function filtradas(){
@@ -654,11 +685,18 @@ function pintar(mantener){
     var fc=(m.fechaCierre||'').substring(0,10);if(fc&&fc<hoy&&m.pct<1)venc++;});
   var av=f.length?suma/f.length*100:0;
 
+  var soles=0,nSoles=0,mins=0,nMin=0;
+  f.forEach(function(m){
+    if(impDe(m)==='COSTO'&&m.ahorroMonto!==''&&m.ahorroMonto!==undefined){soles+=Number(m.ahorroMonto)||0;nSoles++;}
+    if(impDe(m)==='TIEMPO'&&m.ahorroTiempo){var x=minutosDe(m.ahorroTiempo);if(x){mins+=x;nMin++;}}
+  });
   $('miniKpi').innerHTML=
     mk2('',f.length,'mostradas','de '+MEJORAS.length+' en total')+
     mk2('sage',(Math.round(av*10)/10)+'%','avance','suma de avances ÷ '+f.length)+
     mk2('sage',cerr,'cerradas',f.length?Math.round(cerr/f.length*100)+'% de lo mostrado':'—')+
-    mk2(venc?'rojo':'',venc,'vencidas','fecha pasada y sin cerrar');
+    mk2(venc?'rojo':'',venc,'vencidas','fecha pasada y sin cerrar')+
+    (nSoles?mk2('sage',money(soles),'ahorro en dinero','suma de '+nSoles+' mejora(s), al mes'):'')+
+    (nMin?mk2('sage',hhmm(mins),'ahorro en tiempo','horas:min de '+nMin+' mejora(s), al mes'):'');
 
   var vis=f.slice(0,MOSTRAR);
   $('btnMas').style.display=f.length>MOSTRAR?'inline-block':'none';
@@ -684,7 +722,6 @@ function pintar(mantener){
           '<u style="left:30%"></u><u style="left:50%"></u><u style="left:70%"></u></div>'+
           '<span class="ipn">'+Math.round(m.pct*100)+'%</span></div>'+
         '<div class="imeta">'+
-          '<span class="catmini c'+catDe(m).toLowerCase()+'">'+(catDe(m)==='SD'?'?':catDe(m))+'</span>'+
           '<span class="pill '+pillPct(m.pct)+'">'+esc(estadoDe(m.pct))+'</span>'+
           (venc?'<span class="pill mal">venció '+esc(fc)+'</span>':
             (fc?'<span class="pill">cierre '+esc(fc)+'</span>':'<span class="pill">sin fecha</span>'))+
@@ -692,6 +729,7 @@ function pintar(mantener){
           (fts.length?'<span class="pill foto">'+na+'↔'+nd+'</span>':'')+
           (m.responsable?'<span class="iresp">'+esc(m.responsable)+'</span>':'')+
         '</div>'+
+        rapidosHTML(m)+
       '</div>'+
       (prev?'<div class="iprev"><img src="'+esc(prev)+'" loading="lazy" alt=""></div>':'')+
     '</div>';
@@ -700,6 +738,109 @@ function pintar(mantener){
 
 function mk2(cls,v,l,s){
   return '<div class="mk '+cls+'"><div class="mkv">'+v+'</div><div class="mkl">'+l+'</div><div class="mks">'+s+'</div></div>';
+}
+
+/* ================================================================
+   CONTROLES RÁPIDOS EN LA TARJETA
+   Se editan sin abrir la mejora y se guardan al instante.
+   ================================================================ */
+function rapidosHTML(m){
+  var c=catDe(m), t=impDe(m);
+  var h='<div class="iquick" onclick="event.stopPropagation()">';
+
+  h+='<span class="qlab">Categoría</span><span class="qgrp">'+
+     ['A','B','C'].map(function(x){
+       return '<button class="qb'+(c===x?' on':'')+'" onclick="setCatRapido(\''+m.id+'\',\''+x+'\')">'+x+'</button>';
+     }).join('')+'</span>';
+
+  h+='<span class="qsep"></span>';
+
+  h+='<span class="qlab">Ahorro</span><span class="qgrp">'+
+     '<button class="qb ancho'+(t==='COSTO'?' on':'')+'" onclick="setTipoRapido(\''+m.id+'\',\'Costo\')">Costo</button>'+
+     '<button class="qb ancho'+(t==='TIEMPO'?' on':'')+'" onclick="setTipoRapido(\''+m.id+'\',\'Tiempo\')">Tiempo</button>'+
+     '</span>';
+
+  if(t==='COSTO'){
+    h+='<span class="qcampo"><span class="qpre">S/</span>'+
+       '<input type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" '+
+       'value="'+esc(m.ahorroMonto===''||m.ahorroMonto===undefined?'':m.ahorroMonto)+'" '+
+       'onchange="setMontoRapido(\''+m.id+'\',this.value)">'+
+       '<span class="qsuf">al mes</span></span>';
+  }else if(t==='TIEMPO'){
+    h+='<span class="qcampo"><input type="text" class="qhora" inputmode="numeric" maxlength="5" '+
+       'placeholder="00:00" value="'+esc(m.ahorroTiempo||'')+'" '+
+       'oninput="mascaraHora(this)" onchange="setTiempoRapido(\''+m.id+'\',this.value)">'+
+       '<span class="qsuf">h:min al mes</span></span>';
+  }
+  h+='</div>';
+  return h;
+}
+
+/* escribe 00:00 mientras teclea */
+function mascaraHora(el){
+  var v=el.value.replace(/[^0-9]/g,'').substring(0,4);
+  if(v.length>2)v=v.substring(0,v.length-2)+':'+v.substring(v.length-2);
+  el.value=v;
+}
+
+function patch_(id,campo,valor){
+  for(var i=0;i<MEJORAS.length;i++){
+    if(MEJORAS[i].id===id){MEJORAS[i][campo]=valor;return MEJORAS[i];}
+  }
+  return null;
+}
+
+function guardarRapido(id,datos,etiqueta){
+  var el=$('it-'+id);
+  if(el)el.classList.add('guardando');
+  datos.accion='actualizar';datos.id=id;datos.usuario=USUARIO;
+  post(datos).then(function(r){
+    if(el)el.classList.remove('guardando');
+    if(!r||!r.ok){toast('No se guardó: '+((r&&r.error)||'sin respuesta del servidor'),true);cargar();return;}
+    if(el){el.classList.add('recien');setTimeout(function(){el.classList.remove('recien');},1400);}
+    if(etiqueta)toast(etiqueta);
+  }).catch(function(e){
+    if(el)el.classList.remove('guardando');
+    toast('No se guardó: '+e,true);
+  });
+}
+
+function setCatRapido(id,c){
+  /* volver a tocar la misma letra la quita */
+  var actual=null;
+  for(var i=0;i<MEJORAS.length;i++)if(MEJORAS[i].id===id)actual=catDe(MEJORAS[i]);
+  var nuevo=(actual===c)?'':c;
+  patch_(id,'evaluacion',nuevo);
+  pintar(true);
+  guardarRapido(id,{evaluacion:nuevo},nuevo?('Categoría '+nuevo):'Categoría quitada');
+}
+
+function setTipoRapido(id,tipo){
+  patch_(id,'impacto',tipo);
+  pintar(true);
+  guardarRapido(id,{impacto:tipo},'Ahorro por '+tipo.toLowerCase());
+  setTimeout(function(){
+    var el=$('it-'+id);
+    if(el){var inp=el.querySelector('.qcampo input');if(inp)inp.focus();}
+  },80);
+}
+
+function setMontoRapido(id,v){
+  var n=(v===''?'':Number(v));
+  if(n!==''&&(isNaN(n)||n<0)){toast('Escribe un monto válido',true);return;}
+  patch_(id,'ahorroMonto',n);
+  guardarRapido(id,{ahorroMonto:n},n===''?'Monto borrado':('Ahorro '+money(n)));
+}
+
+function setTiempoRapido(id,v){
+  v=String(v||'').trim();
+  if(v&&!/^\d{1,2}:\d{2}$/.test(v)){toast('Escribe las horas así: 2:30',true);return;}
+  if(v){
+    var mm=parseInt(v.split(':')[1],10);
+    if(mm>59){toast('Los minutos no pueden pasar de 59',true);return;}
+  }
+  patch_(id,'ahorroTiempo',v);
+  guardarRapido(id,{ahorroTiempo:v},v?('Ahorro '+v+' h'):'Tiempo borrado');
 }
 
 /* ---------- DETALLE ---------- */
