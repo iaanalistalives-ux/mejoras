@@ -139,7 +139,7 @@ input:focus,textarea:focus,select:focus{outline:2px solid var(--sage);outline-of
 .repvacio{font-size:13px;color:var(--stone);font-style:italic;padding:10px 0;margin:0;}
 .repnota{font-size:11.5px;color:var(--stone);margin-top:22px;padding-top:12px;border-top:1px solid var(--warm-light);line-height:1.55;}
 @media print{
-  .noprint,.header,.tabs,#vMejoras,#vDash{display:none!important;}
+  .noprint,.header,.tabs,#vMejoras,#vDash,.toast,.modal,.modal2,.lightbox{display:none!important;}
   body{background:#fff;}
   .wrap{max-width:100%;padding:0;}
   .repdoc{border:none;box-shadow:none;padding:0;border-radius:0;}
@@ -1511,8 +1511,8 @@ function pintarReporte(){
 
 function descargarPDF(){
   if(!$('repDoc')){toast('Genera primero el reporte',true);return;}
-  toast('En el cuadro que aparece, elige «Guardar como PDF» en Destino.');
-  setTimeout(function(){window.print();},600);
+  var t=$('toast');if(t)t.className='toast';      /* nada flotante sobre la hoja */
+  window.print();
 }
 
 function copiarReporte(){
