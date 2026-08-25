@@ -1443,31 +1443,14 @@ function pintarReporte(){
      '<div class="rs">'+(area?esc(area):'Todas las áreas')+
      (anio?' · cerradas en '+esc(anio):'')+' · al '+fechaLarga(hoy)+'</div></div></div>';
 
-  h+='<p class="repres">Hay <b>'+cerradas.length+'</b> mejora'+(cerradas.length===1?'':'s')+
-     ' cerrada'+(cerradas.length===1?'':'s')+' y <b>'+pend.length+'</b> pendiente'+(pend.length===1?'':'s')+
+  h+='<p class="repres">Quedan <b>'+pend.length+'</b> mejora'+(pend.length===1?'':'s')+
+     ' pendiente'+(pend.length===1?'':'s')+
      (vencidas?', de las cuales <b>'+vencidas+'</b> ya pasaron su fecha comprometida':'')+
-     (sinF.length?'. <b>'+sinF.length+'</b> no tienen fecha asignada':'')+'.'+
+     (sinF.length?', y <b>'+sinF.length+'</b> siguen sin fecha asignada':'')+'. '+
+     'Cerradas hay <b>'+cerradas.length+'</b>.'+
      (prom!==null?' Las que se cerraron desde el panel tomaron <b>'+prom+' días</b> en promedio.':'')+'</p>';
 
-  /* ---------- SECCIÓN 1 ---------- */
-  h+='<div class="reptit">Mejoras cerradas ('+cerradas.length+')</div>';
-  if(cerradas.length){
-    h+='<div class="repsub">Ordenadas de la más reciente a la más antigua.</div>';
-    h+='<table class="reptab"><thead><tr>'+
-       '<th>Área</th><th>Mejora</th><th>Resultado</th><th class="ctr">Fecha de cierre</th><th class="ctr">Tomó</th>'+
-       '</tr></thead><tbody>'+
-       cerradas.map(function(m){
-         return '<tr><td>'+esc(m.area)+'</td>'+
-           '<td><b>'+esc(m.id)+'</b> · '+esc(m.idea)+'</td>'+
-           '<td>'+(m.resultado?esc(m.resultado):'<span class="gris">—</span>')+'</td>'+
-           '<td class="ctr">'+(m._fc?esc(m._fc)+(cierreEsReal(m)?'':'<span class="ast">*</span>'):'<span class="gris">—</span>')+'</td>'+
-           '<td class="ctr">'+(m._dur!==null?duracion(m._dur):'<span class="gris">—</span>')+'</td></tr>';
-       }).join('')+'</tbody></table>';
-  }else{
-    h+='<p class="repvacio">No hay mejoras cerradas con estos filtros.</p>';
-  }
-
-  /* ---------- SECCIÓN 2 ---------- */
+  /* ---------- SECCIÓN 1: lo pendiente, que es lo que se trabaja ---------- */
   h+='<div class="reptit">Mejoras pendientes ('+pend.length+')</div>';
   if(conF.length){
     h+='<div class="repsub">Con fecha comprometida, de la más cercana a la más lejana.</div>';
@@ -1496,6 +1479,24 @@ function pintarReporte(){
        }).join('')+'</tbody></table>';
   }
   if(!pend.length)h+='<p class="repvacio">No hay mejoras pendientes con estos filtros.</p>';
+
+  /* ---------- SECCIÓN 2: lo cerrado, como respaldo ---------- */
+  h+='<div class="reptit">Mejoras cerradas ('+cerradas.length+')</div>';
+  if(cerradas.length){
+    h+='<div class="repsub">Ya resueltas. De la más reciente a la más antigua.</div>';
+    h+='<table class="reptab"><thead><tr>'+
+       '<th>Área</th><th>Mejora</th><th>Resultado</th><th class="ctr">Fecha de cierre</th><th class="ctr">Tomó</th>'+
+       '</tr></thead><tbody>'+
+       cerradas.map(function(m){
+         return '<tr><td>'+esc(m.area)+'</td>'+
+           '<td><b>'+esc(m.id)+'</b> · '+esc(m.idea)+'</td>'+
+           '<td>'+(m.resultado?esc(m.resultado):'<span class="gris">—</span>')+'</td>'+
+           '<td class="ctr">'+(m._fc?esc(m._fc)+(cierreEsReal(m)?'':'<span class="ast">*</span>'):'<span class="gris">—</span>')+'</td>'+
+           '<td class="ctr">'+(m._dur!==null?duracion(m._dur):'<span class="gris">—</span>')+'</td></tr>';
+       }).join('')+'</tbody></table>';
+  }else{
+    h+='<p class="repvacio">No hay mejoras cerradas con estos filtros.</p>';
+  }
 
   h+='<p class="repnota">'+
      'El avance usa la escala del Círculo: 0% no iniciado · 30% solicitud realizada · 50% pedido en gestión · '+
