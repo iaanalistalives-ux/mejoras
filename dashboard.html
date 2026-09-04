@@ -72,6 +72,7 @@ box-shadow:var(--sh);padding:12px 16px;margin-bottom:16px;font-size:13.5px;}
 .insight b{color:var(--sage-dark);}
 
 /* ---- pestañas ---- */
+.tabpane{display:none;} .tabpane.active{display:block;}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--warm);margin:22px 0 14px;flex-wrap:wrap;}
 .tabs button{background:none;border:none;font-family:inherit;font-size:13.5px;font-weight:700;
 color:var(--stone);padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px;}
@@ -256,6 +257,31 @@ if(typeof Chart!=='undefined'){
     Chart.defaults.plugins.legend.labels.boxWidth=10;
   }
 }
+/* la skill pide el valor al final de la barra, fuera de ella */
+var etiquetaBarra={
+  id:'etiquetaBarra',
+  afterDatasetsDraw:function(ch,args,opts){
+    if(!opts||!opts.on)return;
+    var g=ch.ctx, suf=opts.suf||'';
+    g.save();
+    g.font='700 11px Calibri, Arial, sans-serif';
+    g.fillStyle='#333';
+    g.textBaseline='middle';
+    ch.data.datasets.forEach(function(ds,di){
+      var meta=ch.getDatasetMeta(di);
+      if(meta.hidden)return;
+      meta.data.forEach(function(barra,i){
+        var v=ds.data[i];
+        if(v===null||v===undefined)return;
+        var txt=(opts.dec===0?Math.round(v):Math.round(v*10)/10).toLocaleString('es-PE')+suf;
+        g.fillText(txt,barra.x+7,barra.y);
+      });
+    });
+    g.restore();
+  }
+};
+if(typeof Chart!=='undefined')Chart.register(etiquetaBarra);
+
 function limpiarCharts(){for(var i=0;i<CHARTS.length;i++){try{CHARTS[i].destroy();}catch(e){}}CHARTS=[];}
 function mk(id,cfg){var el=$(id);if(!el||typeof Chart==='undefined')return;CHARTS.push(new Chart(el,cfg));}
 
@@ -392,14 +418,17 @@ function render(){
 
   h+='<div class="tabs">'+
      tb(0,'Panorama')+tb(1,'Áreas')+tb(2,'Riesgo')+tb(3,'Evidencia')+tb(4,'Detalle')+'</div>';
-  h+='<div id="cont"></div>';
+  /* los cinco paneles existen siempre en la página: así al imprimir salen todos */
+  for(var t=0;t<5;t++)
+    h+='<div class="tabpane'+(TAB===t?' active':'')+'" id="pane'+t+'">'+cuerpoTab(t)+'</div>';
   h+=guia();
   $('app').innerHTML=h;
 
   var vs=document.querySelectorAll('.kpi .v[data-count]');
   for(var i=0;i<vs.length;i++)countUp(vs[i]);
 
-  pintarTab();
+  LISTO={};
+  dibujarTab(TAB);
 }
 
 function kpi(cls,valor,dec,suf,label,sub){
@@ -408,8 +437,36 @@ function kpi(cls,valor,dec,suf,label,sub){
     '<div class="s">'+sub+'</div></div>';
 }
 function tb(i,txt){return '<button class="'+(TAB===i?'active':'')+'" onclick="setTab('+i+')">'+txt+'</button>';}
-function setTab(i){TAB=i;render();}
+function setTab(i){
+  TAB=i;
+  var bs=document.querySelectorAll('.tabs button');
+  for(var k=0;k<bs.length;k++)bs[k].classList.toggle('active',k===i);
+  for(var p=0;p<5;p++){
+    var el=$('pane'+p);
+    if(el)el.classList.toggle('active',p===i);
+  }
+  dibujarTab(i);
+}
 function setArea(a){AREA=a;render();}
+
+/* los gráficos se dibujan la primera vez que se ve la pestaña:
+   un canvas oculto mide 0 y saldría deformado */
+var LISTO={};
+function dibujarTab(i){
+  if(!LISTO[i]){pintarTab(i);LISTO[i]=true;}
+  else for(var k=0;k<CHARTS.length;k++){try{CHARTS[k].resize();}catch(e){}}
+}
+/* al imprimir se despliegan las cinco */
+if(typeof window!=='undefined'&&window.addEventListener){
+  window.addEventListener('beforeprint',function(){
+    for(var t=0;t<5;t++){var el=$('pane'+t);if(el)el.classList.add('active');}
+    for(var t2=0;t2<5;t2++)if(!LISTO[t2]){pintarTab(t2);LISTO[t2]=true;}
+    for(var k=0;k<CHARTS.length;k++){try{CHARTS[k].resize();}catch(e){}}
+  });
+  window.addEventListener('afterprint',function(){
+    for(var t=0;t<5;t++){var el=$('pane'+t);if(el)el.classList.toggle('active',t===TAB);}
+  });
+}
 
 function panel(cls,t,sub,cuerpo){
   return '<div class="'+cls+'"><div class="panel"><div class="pt">'+t+'</div><div class="ph">'+sub+'</div>'+cuerpo+'</div></div>';
@@ -417,12 +474,11 @@ function panel(cls,t,sub,cuerpo){
 function lienzo(id,extra){return '<div class="cwrap '+(extra||'')+'"><canvas id="'+id+'"></canvas></div>';}
 
 /* ================= pestañas ================= */
-function pintarTab(){
-  limpiarCharts();
-  var d=datos(),c=$('cont'),pa=porArea();
-
-  if(TAB===0){
-    c.innerHTML='<div class="grid">'+
+/* HTML de cada pestaña, sin gráficos */
+function cuerpoTab(T){
+  var d=datos(),pa=porArea();
+  if(T===0){
+    return '<div class="grid">'+
       panel('col8','Cómo está repartida cada área',
         'Cada barra es un área y suma 100%. Verde lo cerrado, ámbar lo que va en camino, gris lo que no arrancó. Mientras más gris, más lejos de la meta.',
         lienzo('cComp','xtall'))+
@@ -433,7 +489,65 @@ function pintarTab(){
         'Los cinco escalones que usa el Círculo, del que no ha empezado al que ya está entregado. La meta es que todas lleguen al 100%.',
         lienzo('cEsc'))+
       '</div>';
+  }
+  if(T===1){
+    return '<div class="grid">'+
+      panel('col6','Ranking de avance por área',
+        'Porcentaje = suma de los avances de las ideas del área ÷ número de ideas de esa área. Nunca es el promedio de los porcentajes de otras áreas. Meta: '+META+'%.',
+        '<ul class="rank">'+pa.map(function(x,i){
+          return '<li><span class="n">'+(i+1)+'</span>'+
+            '<div><div class="nm">'+esc(x.area)+' <span class="sub">· '+x.cerr+' de '+x.n+' cerradas'+
+            (x.venc?' · '+x.venc+' vencidas':'')+'</span></div>'+
+            '<div class="track"><i class="fill" data-w="'+x.avance.toFixed(1)+'" style="background:'+sem(x.avance)+'"></i></div></div>'+
+            '<span class="val" style="color:'+sem(x.avance)+'">'+n1(x.avance)+'%</span></li>';
+        }).join('')+'</ul>')+
+      panel('col6','Cuántas ideas propone cada área frente a cuánto avanza',
+        'Las barras son la cantidad de ideas; la línea es el avance del área. Muchas barras con línea baja significa que el área propone más de lo que alcanza a cerrar.',
+        lienzo('cMix','tall'))+
+      '</div>';
+  }
+  if(T===2){
+    var v=vencidasList(), conV=pa.filter(function(x){return x.venc>0;});
+    return '<div class="grid">'+
+      (v.length?panel('col8','Las más atrasadas',
+        'Días transcurridos desde la fecha que el área se comprometió a cumplir y no cumplió. Se muestran las 12 con más días.',
+        lienzo('cAtraso','xtall'))
+       :panel('col8','Sin mejoras vencidas','Ninguna mejora abierta tiene la fecha de cierre pasada.',''))+
+      (conV.length?panel('col4','Vencidas por área',
+        'Cuántas mejoras vencidas acumula cada área. Es la lista de a quién preguntarle primero.',
+        lienzo('cVenc','xtall')):'')+
+      panel('col12','Reprogramaciones',
+        'Cuántas mejoras tuvieron que mover su fecha de cierre al menos una vez. Reprogramar varias veces suele indicar que la mejora está trabada, no que avanza despacio.',
+        '<div class="dual">'+
+        '<div class="dcell"><div class="dv">'+d.reprog+'</div><div class="dl">mejoras reprogramadas</div></div>'+
+        '<div class="dcell"><div class="dv">'+(d.n?n1(d.reprog/d.n*100):0)+'%</div><div class="dl">del total de ideas</div></div>'+
+        '</div>'+(d.reprog===0?'<div class="note">Todavía no hay reprogramaciones registradas. Este número empieza a contar desde ahora: las del archivo antiguo no quedaron guardadas.</div>':''))+
+      '</div>';
+  }
+  if(T===3){
+    return '<div class="grid">'+
+      panel('col8','Qué tanto se documenta cada área',
+        'Porcentaje de ideas del área con al menos un archivo cargado. Sin evidencia, que una mejora esté cerrada es solo una declaración.',
+        lienzo('cFoto','xtall'))+
+      panel('col4','Antes contra después',
+        'Una evidencia sirve cuando se puede comparar. Si solo hay foto del resultado, no hay con qué contrastarla.',
+        lienzo('cAD','tall')+
+        (d.nDesp>d.nAntes*1.3?'<div class="note">Hay '+n1(d.nDesp/Math.max(d.nAntes,1))+' veces más archivos del después que del antes. Las áreas documentan el logro, casi nunca la situación previa.</div>':''))+
+      '</div>';
+  }
+  var l=d.f.slice().sort(function(a,b){
+    return a.area===b.area?a.id.localeCompare(b.id):a.area.localeCompare(b.area);});
+  return '<div class="grid">'+panel('col12','Detalle de las '+l.length+' ideas',
+    'La lista completa, por si hace falta buscar una mejora puntual.',
+    '<input class="busca" type="search" placeholder="Buscar por código, área, idea o responsable…" oninput="filtraTabla(this.value)">'+
+    '<div id="tw">'+tabla(l)+'</div>')+'</div>';
+}
 
+/* gráficos de cada pestaña */
+function pintarTab(T){
+  var d=datos(),pa=porArea();
+
+  if(T===0){
     var lab=pa.map(function(x){return corto(x.area,20);});
     mk('cComp',{type:'bar',
       data:{labels:lab,datasets:[
@@ -467,22 +581,7 @@ function pintarTab(){
                 x:{grid:{display:false}}}}});
   }
 
-  else if(TAB===1){
-    c.innerHTML='<div class="grid">'+
-      panel('col6','Ranking de avance por área',
-        'Porcentaje = suma de los avances de las ideas del área ÷ número de ideas de esa área. Nunca es el promedio de los porcentajes de otras áreas. Meta: '+META+'%.',
-        '<ul class="rank">'+pa.map(function(x,i){
-          return '<li><span class="n">'+(i+1)+'</span>'+
-            '<div><div class="nm">'+esc(x.area)+' <span class="sub">· '+x.cerr+' de '+x.n+' cerradas'+
-            (x.venc?' · '+x.venc+' vencidas':'')+'</span></div>'+
-            '<div class="track"><i class="fill" data-w="'+x.avance.toFixed(1)+'" style="background:'+sem(x.avance)+'"></i></div></div>'+
-            '<span class="val" style="color:'+sem(x.avance)+'">'+n1(x.avance)+'%</span></li>';
-        }).join('')+'</ul>')+
-      panel('col6','Cuántas ideas propone cada área frente a cuánto avanza',
-        'Las barras son la cantidad de ideas; la línea es el avance del área. Muchas barras con línea baja significa que el área propone más de lo que alcanza a cerrar.',
-        lienzo('cMix','tall'))+
-      '</div>';
-
+  if(T===1){
     setTimeout(function(){
       var f=document.querySelectorAll('.rank .fill');
       for(var i=0;i<f.length;i++)f[i].style.width=f[i].dataset.w+'%';
@@ -508,31 +607,16 @@ function pintarTab(){
                 x:{grid:{display:false},ticks:{maxRotation:60,minRotation:45}}}}});
   }
 
-  else if(TAB===2){
+  if(T===2){
     var v=vencidasList(),top=v.slice(0,12);
     var conV=pa.filter(function(x){return x.venc>0;});
-    c.innerHTML='<div class="grid">'+
-      (v.length?panel('col8','Las más atrasadas',
-        'Días transcurridos desde la fecha que el área se comprometió a cumplir y no cumplió. Se muestran las 12 con más días.',
-        lienzo('cAtraso','xtall'))
-       :panel('col8','Sin mejoras vencidas','Ninguna mejora abierta tiene la fecha de cierre pasada.',''))+
-      (conV.length?panel('col4','Vencidas por área',
-        'Cuántas mejoras vencidas acumula cada área. Es la lista de a quién preguntarle primero.',
-        lienzo('cVenc','xtall')):'')+
-      panel('col12','Reprogramaciones',
-        'Cuántas mejoras tuvieron que mover su fecha de cierre al menos una vez. Reprogramar varias veces suele indicar que la mejora está trabada, no que avanza despacio.',
-        '<div class="dual">'+
-        '<div class="dcell"><div class="dv">'+d.reprog+'</div><div class="dl">mejoras reprogramadas</div></div>'+
-        '<div class="dcell"><div class="dv">'+(d.n?n1(d.reprog/d.n*100):0)+'%</div><div class="dl">del total de ideas</div></div>'+
-        '</div>'+(d.reprog===0?'<div class="note">Todavía no hay reprogramaciones registradas. Este número empieza a contar desde ahora: las del archivo antiguo no quedaron guardadas.</div>':''))+
-      '</div>';
-
     if(v.length) mk('cAtraso',{type:'bar',
       data:{labels:top.map(function(m){return m.id+' · '+corto(m.idea,32);}),
         datasets:[{data:top.map(function(m){return m._d;}),
           backgroundColor:top.map(function(m){return sem(m.pct*100);}),borderRadius:4,barThickness:16}]},
-      options:{indexAxis:'y',responsive:true,
-        plugins:{legend:{display:false},tooltip:{callbacks:{
+      options:{indexAxis:'y',responsive:true,layout:{padding:{right:44}},
+        plugins:{legend:{display:false},etiquetaBarra:{on:true,dec:0,suf:' d'},
+          tooltip:{callbacks:{
           label:function(x){return x.raw+' días vencida · avance '+Math.round(top[x.dataIndex].pct*100)+'%';}}}},
         scales:{x:{beginAtZero:true,grid:{color:'#F1F6F4'},title:{display:true,text:'Días de atraso'}},
                 y:{grid:{display:false},ticks:{font:{size:10.5}}}}}});
@@ -541,29 +625,21 @@ function pintarTab(){
       data:{labels:conV.map(function(x){return corto(x.area,20);}),
         datasets:[{data:conV.map(function(x){return x.venc;}),
           backgroundColor:conV.map(function(x){return sem(x.avance);}),borderRadius:4,barThickness:16}]},
-      options:{indexAxis:'y',responsive:true,
-        plugins:{legend:{display:false},tooltip:{callbacks:{
+      options:{indexAxis:'y',responsive:true,layout:{padding:{right:36}},
+        plugins:{legend:{display:false},etiquetaBarra:{on:true,dec:0},
+          tooltip:{callbacks:{
           label:function(x){return x.raw+' vencidas de '+conV[x.dataIndex].n+' ideas · avance '+n1(conV[x.dataIndex].avance)+'%';}}}},
         scales:{x:{beginAtZero:true,grid:{color:'#F1F6F4'},ticks:{precision:0}},y:{grid:{display:false}}}}});
   }
 
-  else if(TAB===3){
-    c.innerHTML='<div class="grid">'+
-      panel('col8','Qué tanto se documenta cada área',
-        'Porcentaje de ideas del área con al menos un archivo cargado. Sin evidencia, que una mejora esté cerrada es solo una declaración.',
-        lienzo('cFoto','xtall'))+
-      panel('col4','Antes contra después',
-        'Una evidencia sirve cuando se puede comparar. Si solo hay foto del resultado, no hay con qué contrastarla.',
-        lienzo('cAD','tall')+
-        (d.nDesp>d.nAntes*1.3?'<div class="note">Hay '+n1(d.nDesp/Math.max(d.nAntes,1))+' veces más archivos del después que del antes. Las áreas documentan el logro, casi nunca la situación previa.</div>':''))+
-      '</div>';
-
+  if(T===3){
     mk('cFoto',{type:'bar',
       data:{labels:pa.map(function(x){return corto(x.area,20);}),
         datasets:[{data:pa.map(function(x){return x.pctFoto;}),
           backgroundColor:pa.map(function(x){return sem(x.pctFoto);}),borderRadius:4,barThickness:16}]},
-      options:{indexAxis:'y',responsive:true,
-        plugins:{legend:{display:false},tooltip:{callbacks:{
+      options:{indexAxis:'y',responsive:true,layout:{padding:{right:46}},
+        plugins:{legend:{display:false},etiquetaBarra:{on:true,dec:1,suf:'%'},
+          tooltip:{callbacks:{
           label:function(x){return pa[x.dataIndex].foto+' de '+pa[x.dataIndex].n+' ideas con evidencia ('+n1(x.raw)+'%)';}}}},
         scales:{x:{beginAtZero:true,max:100,grid:{color:'#F1F6F4'},ticks:{callback:function(v){return v+'%';}}},
                 y:{grid:{display:false}}}}});
@@ -577,14 +653,6 @@ function pintarTab(){
                 x:{grid:{display:false}}}}});
   }
 
-  else{
-    var l=d.f.slice().sort(function(a,b){
-      return a.area===b.area?a.id.localeCompare(b.id):a.area.localeCompare(b.area);});
-    c.innerHTML='<div class="grid">'+panel('col12','Detalle de las '+l.length+' ideas',
-      'La lista completa, por si hace falta buscar una mejora puntual.',
-      '<input class="busca" type="search" placeholder="Buscar por código, área, idea o responsable…" oninput="filtraTabla(this.value)">'+
-      '<div id="tw">'+tabla(l)+'</div>')+'</div>';
-  }
 }
 
 function filtraTabla(q){
