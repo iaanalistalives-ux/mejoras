@@ -859,7 +859,8 @@ function llaveSB(){
 /* los archivos son privados: se piden direcciones firmadas que duran 24 horas */
 function firmar(rutas){
   if(!rutas.length)return Promise.resolve({});
-  return llaveSB().then(function(tk){
+  var pk=(window.LIVES_SESION&&LIVES_SESION.llave)?LIVES_SESION.llave():Promise.resolve(null);   /* sin sesión: llave pública (lectura abierta) */
+  return pk.then(function(tk){ tk=tk||SBK;
     return conTiempo(fetch(SB+'/storage/v1/object/sign/'+BUCKET,{method:'POST',
       headers:{'Content-Type':'application/json',apikey:SBK,Authorization:'Bearer '+tk},
       body:JSON.stringify({expiresIn:86400,paths:rutas})}),30000);
