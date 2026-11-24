@@ -12,6 +12,7 @@ Seguimiento del **Círculo de Mejoras**: reunión semanal donde unas 16 áreas p
   - Eliminar una mejora no la borra de verdad: queda archivada en la base con sus archivos.
   - Reporte para correo o PDF: mejoras pendientes (con y sin fecha) y cerradas del año, con "Descargar PDF" (imprimir) y "Copiar para el correo".
 - `dashboard.html` — **tablero** de solo lectura, con filtro por área. Meta de avance 100 %, semáforo (≥ 100 verde, ≥ 80 ámbar, < 80 rojo). Pestañas Panorama, Áreas, Riesgo (las más atrasadas, vencidas por área y reprogramaciones, que empiezan a contar desde ahora), Evidencia (% de ideas por área con al menos un archivo) y Detalle (regla 500). Imprime en A4.
+  - Botón **«Registrar»** en la barra de filtros (desde el 24/11/2026): abre el panel de gestión (`index.html`) en una ventana dentro del tablero (casi pantalla completa; completa en celular), con «✕ Cerrar». Si hay una ficha con cambios sin guardar pregunta «¿Salir sin guardar?»; si se guardó algo, el tablero vuelve a leer los datos al cerrar. El botón pregunta a la base (`mejoras_puede_escribir_`): puede, activo; no puede o sin sesión, gris («Solo para quien registra»). El panel conserva su link directo.
 - Evidencias: imágenes (se comprimen en el equipo), PDF, Word, Excel, CSV, PowerPoint, texto, zip, correos; hasta 20 MB cada una; se pueden pegar con Ctrl+V o tomar con la cámara.
 - Excel: solo el bloque LIVES, no tiene exportación propia.
 - Guarda una copia en el equipo (`lives_mejoras_v2` y `lives_evid_v2`) para abrir al instante; sin red muestra lo último guardado.
@@ -28,6 +29,7 @@ No aparece en el registro de entradas del portal de los últimos 60 días (al 21
 
 ## Quién puede registrar
 - Lo decide la base: `mejoras_puede_leer_` y `mejoras_puede_escribir_` (esta última también protege la subida de archivos). El nombre de quien registra lo toma la base de la sesión del portal.
+- El permiso de registrar se enciende y apaga por persona en el panel «Quién registra» (`lives-portal/admin.html`), opción **«Círculo de Mejoras · panel»** (`registra_herramientas.clave = 'mejoras'`; guarda en `permisos` el link del panel). El mismo interruptor manda sobre el botón «Registrar» del tablero y sobre el guardado. Al 24/11/2026 solo lo tiene encendido `msilva` (más Christian, que siempre puede). Rodrigo ve el botón gris: la función no lo incluye.
 - A Sistemas: esas dos funciones son las piezas que reemplazan con su seguridad.
 
 ## Pendientes vistos al escribir esto (21/10/2026)

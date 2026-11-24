@@ -1131,7 +1131,24 @@ function subirEvidenciaSB(d){
                 mime:blob.type,bytes:blob.size,descripcion:d.descripcion||''}});
   }).then(function(r){return r||{ok:false,error:'sin respuesta'};},function(e){return {ok:false,error:txtErr(e)};});
 }
+/* Abierto dentro del tablero (ventana "Registrar"): el tablero se entera de cada guardado y pregunta
+   si quedó una ficha con cambios sin guardar. */
+var MEJ_SUCIO=false;
 function post(d){
+  return post0(d).then(function(r){
+    if(r&&r.ok){try{if(window.parent!==window)window.parent.postMessage({tipo:'mej-guardado'},location.origin);}catch(e){}}
+    return r;
+  });
+}
+['input','change','click'].forEach(function(ev){
+  document.addEventListener(ev,function(e){
+    var x=e.target;if(!x||!x.closest||!x.closest('#mBody'))return;
+    if(ev==='click'&&!x.closest('button'))return;
+    MEJ_SUCIO=true;
+  },true);
+});
+window.MEJ_SIN_GUARDAR=function(){var m=$('modal');return !!(MEJ_SUCIO&&m&&m.classList.contains('on'));};
+function post0(d){
   var a=d.accion;
   if(a==='crear')return rpcEscribir('mejoras_crear',{p:sinAccion(d)});
   if(a==='actualizar')return rpcEscribir('mejoras_actualizar',{p:sinAccion(d)});
@@ -1613,6 +1630,7 @@ function repintarModal(){
 function abrir(id){
   var m=null;for(var i=0;i<MEJORAS.length;i++)if(MEJORAS[i].id===id){m=MEJORAS[i];break;}
   if(!m)return;
+  MEJ_SUCIO=false;
   ACTUAL=JSON.parse(JSON.stringify(m));ACTUAL.nueva=false;
   $('mId').textContent=m.id;$('mArea').textContent=m.area;
   $('mBody').innerHTML=formHTML(ACTUAL)+bloquesHTML(ACTUAL);
@@ -1622,6 +1640,7 @@ function abrir(id){
 }
 
 function nuevaMejora(){
+  MEJ_SUCIO=false;
   ACTUAL={nueva:true,id:'',area:$('fArea').value||AREAS[0]||'',idea:'',evaluacion:'',responsable:'',
           fechaCierre:'',pct:0,impacto:'',resultado:'',comentarios:'',situacionAntes:'',revisar:''};
   $('mId').textContent='Nueva mejora';
@@ -1965,6 +1984,7 @@ function resaltar(id){
 }
 
 function cerrar(){
+  MEJ_SUCIO=false;
   $('modal').classList.remove('on');document.body.style.overflow='';
   cerrarBorrado();ACTUAL=null;
 }

@@ -639,6 +639,16 @@ select:hover{border-color:var(--sage);}
 cursor:pointer;border:1px solid var(--warm);background:#fff;color:var(--sage);}
 .btn:hover{border-color:var(--sage);}
 .spacer{margin-left:auto;}
+.btn[disabled]{opacity:.55;cursor:not-allowed;color:var(--stone);}
+.btn[disabled]:hover{border-color:var(--warm);}
+.regModal{position:fixed;inset:0;z-index:9000;background:rgba(14,59,54,.55);display:flex;align-items:center;justify-content:center;padding:2vh 2vw;}
+.regModal[hidden],.regPreg[hidden]{display:none;}
+.regCaja{background:var(--warm-light);border-radius:var(--r);width:min(1500px,100%);height:100%;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+.regTop{display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;background:var(--card);border-bottom:1px solid var(--warm);}
+.regPreg{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto;font-size:13px;font-weight:700;color:var(--taupe);}
+.regCaja iframe{flex:1;width:100%;border:0;background:var(--warm-light);}
+@media(max-width:700px){.regModal{padding:0;}.regCaja{border-radius:0;width:100%;}}
+@media print{.regModal{display:none!important;}}
 .hstate{font-size:11.5px;color:var(--stone);text-align:right;}
 
 /* ---- banda de veredicto ---- */
@@ -811,6 +821,19 @@ padding:14px 18px;color:var(--rose);font-size:13px;}
 </head>
 <body>
 <div class="wrap" id="app"><div class="load">Cargando datos del Círculo de Mejoras…</div></div>
+<!-- Ventana "Registrar": abre el panel de gestión (index.html) dentro del tablero. -->
+<div class="regModal" id="regModal" role="dialog" aria-modal="true" aria-label="Registrar mejoras" hidden>
+  <div class="regCaja">
+    <div class="regTop">
+      <span class="regPreg" id="regPreg" hidden>¿Salir sin guardar?
+        <button class="btn" type="button" onclick="cerrarReg(true)">Sí, salir</button>
+        <button class="btn" type="button" onclick="$('regPreg').hidden=true">Seguir aquí</button>
+      </span>
+      <button class="btn" type="button" id="regCerrar" onclick="cerrarReg()">✕ Cerrar</button>
+    </div>
+    <iframe id="regMarco" name="mejRegistrar" title="Registrar mejoras"></iframe>
+  </div>
+</div>
 <script>
 /* ================================================================
    DATOS EN SUPABASE (28/09/2026) — ya no hay Apps Script ni Sheet.
@@ -1049,6 +1072,7 @@ function render(){
   var h='';
   h+='<div class="bar"><label>Área</label>'+sel+
      '<span class="spacer"></span>'+
+     '<button class="btn" type="button" id="btnReg" onclick="abrirReg()"'+(PUEDE_REG?'':' disabled title="Solo para quien registra"')+'>Registrar</button>'+
      '<span class="hstate">Meta declarada: '+META+'% de avance<br>Datos al abrir · '+new Date().toLocaleString('es-PE')+'</span></div>';
 
   h+='<div class="verdict '+vcls+'"><div class="dot">'+icono+'</div>'+
@@ -1097,6 +1121,45 @@ function setTab(i){
   dibujarTab(i);
 }
 function setArea(a){AREA=a;render();}
+
+/* ================= REGISTRAR =================
+   El botón pregunta a la base si la persona puede registrar (mejoras_puede_escribir_; se enciende y
+   apaga por persona en el panel "Quién registra", opción "Círculo de Mejoras · panel").
+   Puede: activo. No puede o sin sesión: gris. La base igual rechaza guardados sin permiso. */
+var PUEDE_REG=false, REG_GUARDO=false;
+function permisoReg(){
+  var s=null;try{s=window.LIVES_SESION&&LIVES_SESION.actual();}catch(e){}
+  if(!s)return;
+  rpc('mejoras_puede_escribir_',{},15000).then(function(v){
+    PUEDE_REG=(v===true);
+    var b=$('btnReg');if(b){b.disabled=!PUEDE_REG;b.title=PUEDE_REG?'':'Solo para quien registra';}
+  },function(){});
+}
+function abrirReg(){
+  if(!PUEDE_REG)return;
+  var src='index.html';
+  try{
+    var a=window.LIVES_SESION&&LIVES_SESION.actual();
+    var n=(a&&a.nombre)||new URLSearchParams(location.search).get('usuario')||'';
+    if(n)src+='?usuario='+encodeURIComponent(n);
+  }catch(e){}
+  REG_GUARDO=false;$('regPreg').hidden=true;
+  $('regMarco').src=src;$('regModal').hidden=false;
+  document.documentElement.style.overflow='hidden';
+}
+function cerrarReg(forzar){
+  var f=$('regMarco');
+  if(!forzar){
+    var pend=false;
+    try{pend=!!(f.contentWindow&&f.contentWindow.MEJ_SIN_GUARDAR&&f.contentWindow.MEJ_SIN_GUARDAR());}catch(e){}
+    if(pend){$('regPreg').hidden=false;return;}
+  }
+  $('regModal').hidden=true;$('regPreg').hidden=true;f.src='about:blank';
+  document.documentElement.style.overflow='';
+  if(REG_GUARDO){REG_GUARDO=false;REI=0;cargarDatos();}
+}
+window.addEventListener('message',function(e){if(e.origin===location.origin&&e.data&&e.data.tipo==='mej-guardado')REG_GUARDO=true;});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('regModal').hidden)cerrarReg();});
 
 /* los gráficos se dibujan la primera vez que se ve la pestaña:
    un canvas oculto mide 0 y saldría deformado */
@@ -1357,6 +1420,7 @@ function guia(){
 window.setTab=setTab;window.setArea=setArea;window.filtraTabla=filtraTabla;window.cargarDatos=cargarDatos;
 
 cargarDatos();
+permisoReg();
 </script>
 
 <!-- ===== lives-tema v1 (final) · 2026-10-14 (paleta Petróleo v1.1) · modo oscuro opcional para quien lo quiera. Va antes de </body>.
